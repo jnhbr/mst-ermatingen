@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Afterworkbar · MST Ermatingen</title>
+<link rel="manifest" href="../manifest.json">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="icon" href="../assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#141311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/mst.css">
+<style>
+  /* ---------- Einsatzplan ---------- */
+  .blocks{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr)); gap:12px;}
+  .block h3{flex-wrap:wrap;}
+  .block h3{display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .block .count{font-family:var(--font-mono); font-size:11px; color:var(--muted); font-weight:400;}
+  .slot{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+  .slot:last-of-type{border-bottom:none;}
+  .slot-role{flex:1; min-width:0;}
+  .slot-role b{font-weight:600;}
+  .slot-note{display:block; font-size:11.5px; color:var(--muted-2);}
+  .slot-who{font-weight:600; color:var(--white); white-space:nowrap;}
+  .slot-who.me{color:var(--yellow);}
+  .slot-free{color:var(--muted-2); font-style:italic;}
+  .slot select{padding:5px 6px; font-size:12.5px; max-width:150px;}
+  .kind-tag{font-family:var(--font-mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border:1px solid var(--line-strong); border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle;}
+
+  /* ---------- Checkliste / Material ---------- */
+  .group-title{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--yellow); margin:16px 0 4px;}
+  .group-title:first-child{margin-top:0;}
+  .check{display:flex; align-items:flex-start; gap:12px; padding:9px 0; border-bottom:1px solid var(--line);}
+  .check input[type=checkbox]{width:20px; height:20px; accent-color:var(--yellow); margin:1px 0 0; flex-shrink:0; padding:0; cursor:pointer;}
+  .check input[type=checkbox]:disabled{cursor:default;}
+  .check-body{flex:1; min-width:0; font-size:13.5px;}
+  .check.done .check-text{color:var(--muted); text-decoration:line-through;}
+  .check-meta{display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:3px; font-size:11.5px; color:var(--muted);}
+  .who-chip{color:var(--white); background:var(--bg-elev-2); border-radius:10px; padding:1px 8px;}
+  .done-by{color:var(--green);}
+  .qty{font-family:var(--font-mono); color:var(--yellow);}
+  .progress{height:6px; background:var(--bg-elev-2); border-radius:3px; overflow:hidden; margin:0 0 14px;}
+  .progress span{display:block; height:100%; background:var(--yellow);}
+  .add-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; align-items:end; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line-strong);}
+  .add-form input, .add-form select{padding:8px 10px; font-size:13.5px;}
+  .add-form .btn-ghost{height:38px;}
+
+  /* ---------- Karte ---------- */
+  .menu-cat{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.04em; color:var(--yellow); font-size:14px; margin:16px 0 4px;}
+  .menu-cat:first-child{margin-top:0;}
+  .menu-row{display:grid; grid-template-columns:1fr 70px 80px 90px; gap:8px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px; align-items:center;}
+  .menu-row.head{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); border-bottom:1px solid var(--line-strong);}
+  .menu-row .num{text-align:right; font-family:var(--font-mono);}
+  .menu-row .size{color:var(--muted);}
+  .menu-edit{display:grid; grid-template-columns:120px 1fr 80px 80px 80px 32px; gap:6px; margin-bottom:6px;}
+  .menu-edit input, .menu-edit select{padding:6px 8px; font-size:13px;}
+  @media (max-width:720px){ .menu-edit{grid-template-columns:1fr 1fr; padding-bottom:8px; border-bottom:1px solid var(--line);} .menu-row{grid-template-columns:1fr 46px 52px 62px; gap:6px; font-size:12.5px;} .menu-row.head{font-size:9.5px;} }
+  .qr-box{display:flex; gap:18px; align-items:center; flex-wrap:wrap;}
+  .qr-box #qr{background:#fff; padding:10px; border-radius:8px; line-height:0;}
+  .qr-box #qr img, .qr-box #qr canvas{width:150px; height:150px;}
+
+  /* ---------- Helfer ---------- */
+  table.stats td.wrap{white-space:normal;}
+</style>
+</head>
+<body>
+<div id="gate"><div class="loading">lade …</div></div>
+<div id="app"><div class="loading">lade Daten …</div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="../js/mst.js" data-base="../"></script>
+<script>
+/* ===================== DATEN =====================
+   config/awb                 { currentYear }
+   awb/<jahr>                 { date, place, note, memberPrices:{ itemId: preis } }
+   awb/<jahr>/shifts/<id>     { block, blockOrder, kind:"aufbau"|"schicht"|"sonder", order, role, note, assignee, assigneeName, at }
+   awb/<jahr>/tasks/<id>      { month, order, text, who, done, doneBy, doneByName, doneAt }
+   awb/<jahr>/material/<id>   { group, order, item, qty, source, resp, done, doneBy, doneByName, doneAt }
+   awbMenu/<jahr>             { title, items:[{ id, cat, name, size, price }] }   – öffentlich (QR-Code) */
+const MONTHS = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const MENU_CATS = ["Bier","Wein","Cocktails","Shots","Alkoholfrei","Vom Grill","Diverses"];
+const KIND_LABEL = { aufbau:"Auf-/Abbau", schicht:"Schicht", sonder:"Sonderjob" };
+const PUBLIC_URL = new URL("../karte/", location.href).href;
+
+let me = null;
+let YEAR = null, CURRENT_YEAR = null, years = [];
+let info = {}, menu = { items:[] }, shifts = [], tasks = [], material = [];
+let loaded = {};
+let unsub = [];
+let currentTab = "einsatz";
+let saveStatus = "idle";
+let menuDraft = null;
+
+MST.start(async (user) => {
+  me = user;
+  const [conf, ys] = await Promise.all([db.collection("config").doc("awb").get(), db.collection("awb").get()]);
+  CURRENT_YEAR = conf.exists ? conf.data().currentYear : null;
+  years = ys.docs.map(d => d.id).sort().reverse();
+  const wanted = new URLSearchParams(location.search).get("jahr");
+  openYear(years.includes(wanted) ? wanted : (CURRENT_YEAR || years[0]));
+});
+
+const isArchive = () => YEAR !== CURRENT_YEAR;
+const canEdit = () => me.admin || !isArchive();
+const yearRef = () => db.collection("awb").doc(YEAR);
+
+function openYear(y){
+  unsub.forEach(f => f()); unsub = [];
+  if(!y){ document.getElementById("app").innerHTML = '<div class="loading">Noch kein Jahr angelegt.</div>'; return; }
+  YEAR = y; loaded = {}; menuDraft = null;
+  render();
+  const err = e => { console.error(e); saveStatus = "error"; updateSaveIndicatorOnly(); };
+  const done = k => { loaded[k] = true; render(); };
+  unsub.push(yearRef().onSnapshot(d => { info = d.data() || {}; done("info"); }, err));
+  unsub.push(db.collection("awbMenu").doc(y).onSnapshot(d => { menu = d.data() || { items:[] }; done("menu"); }, err));
+  unsub.push(yearRef().collection("shifts").onSnapshot(s => {
+    shifts = s.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b) => (a.blockOrder-b.blockOrder) || (a.order-b.order)); done("shifts");
+  }, err));
+  unsub.push(yearRef().collection("tasks").onSnapshot(s => {
+    tasks = s.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b) => (MONTHS.indexOf(a.month)-MONTHS.indexOf(b.month)) || (a.order-b.order)); done("tasks");
+  }, err));
+  unsub.push(yearRef().collection("material").onSnapshot(s => {
+    material = s.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b) => a.order-b.order); done("material");
+  }, err));
+}
+
+async function write(promise, text){
+  saveStatus = "saving"; updateSaveIndicatorOnly();
+  try{
+    await promise; saveStatus = "saved";
+    if(text) MST.log("awb", `Afterworkbar ${YEAR} · ${text}`, { year:YEAR });
+  }catch(e){ console.error(e); saveStatus = "error"; alert("Konnte nicht gespeichert werden (keine Berechtigung oder keine Verbindung)."); }
+  updateSaveIndicatorOnly();
+}
+function updateSaveIndicatorOnly(){
+  const el = document.getElementById("saveIndicator");
+  if(!el) return;
+  el.className = "save-indicator " + saveStatus;
+  el.querySelector(".save-txt").textContent = { idle:"live", saving:"speichert …", saved:"gespeichert", error:"Fehler" }[saveStatus];
+}
+
+/* ===================== FORMAT ===================== */
+function fmtDate(d){ if(!d) return ""; const [y,m,dd] = d.split("-"); return `${dd}.${m}.${y}`; }
+function fmtStamp(t){ return new Date(t).toLocaleString("de-CH", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }); }
+function price(n){ return n == null ? "–" : (Number.isInteger(n) ? n + ".–" : n.toFixed(2)); }
+function newId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+const doneCount = list => list.filter(x => x.done).length;
+
+/* ===================== GERÜST ===================== */
+function render(){
+  const app = document.getElementById("app");
+  if(!["info","menu","shifts","tasks","material"].every(k => loaded[k])){ app.innerHTML = '<div class="loading">lade Daten …</div>'; return; }
+  const y = window.scrollY;
+  app.innerHTML = renderTopbar() + renderHero() + renderToolbar() + renderTabbar()
+    + `<section class="panel" id="panelContent">${renderTab()}</section>`
+    + '<p class="footer-note">Alles wird live gespeichert – Häkchen und Einträge der anderen erscheinen sofort.</p>';
+  MST.renderUserBar();
+  updateSaveIndicatorOnly();
+  attachHandlers();
+  window.scrollTo(0, y);
+}
+function renderTopbar(){
+  return `<div class="topbar"><span class="crumbs"><a href="../">MST Ermatingen</a> / Afterworkbar</span><div id="userbar"></div></div>`;
+}
+function renderHero(){
+  const filled = shifts.filter(s => s.assignee).length;
+  const picker = years.length > 1 ? `<select class="season-select" id="yearSelect" aria-label="Jahr wählen">${years.map(y =>
+    `<option value="${y}" ${y===YEAR?"selected":""}>${y}${y===CURRENT_YEAR?" (aktuell)":""}</option>`).join("")}</select>` : "";
+  return `
+  <div class="hero">
+    <div class="hero-left">
+      <img class="hero-logo" src="../assets/logo.png" alt="MST Ermatingen Wappen">
+      <div class="hero-titles">
+        <span class="eyebrow">MST Ermatingen${isArchive() ? " · Archiv" : ""}</span>
+        <h1 class="hero-title">Afterworkbar ${esc(YEAR)}</h1>
+        <p class="hero-sub">${info.date ? fmtDate(info.date) : "Datum noch offen"}${info.place ? " · " + esc(info.place) : ""}</p>
+        ${picker}
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-chip"><span class="num">${filled}/${shifts.length}</span><span class="lbl">Einsätze besetzt</span></div>
+      <div class="stat-chip"><span class="num">${doneCount(tasks)}/${tasks.length}</span><span class="lbl">Checkliste</span></div>
+      <div class="stat-chip"><span class="num">${doneCount(material)}/${material.length}</span><span class="lbl">Material</span></div>
+    </div>
+  </div>
+  <div class="court-line"></div>`;
+}
+function renderToolbar(){
+  return `<div class="toolbar"><span class="save-indicator" id="saveIndicator"><span class="save-dot"></span><span class="save-txt"></span></span></div>`;
+}
+function renderTabbar(){
+  const tabs = [["einsatz","Einsatzplan"],["check","Checkliste"],["material","Material"],["karte","Karte"],["helfer","Helfer"]];
+  if(me.admin) tabs.push(["admin","Verwalten"]);
+  return '<div class="tabbar">' + tabs.map(([id,label]) =>
+    `<button class="tabbtn ${currentTab===id?"active":""}" data-tab="${id}" type="button">${label}</button>`).join("") + '</div>';
+}
+function renderTab(){
+  return { einsatz:renderShifts, check:renderTasks, material:renderMaterial, karte:renderMenu, helfer:renderHelpers, admin:renderAdmin }[currentTab]();
+}
+
+/* ===================== EINSATZPLAN ===================== */
+function memberOptions(selected){
+  return `<option value="">– frei –</option>` + Object.entries(MST.directory)
+    .sort((a,b) => a[1].name.localeCompare(b[1].name, "de"))
+    .map(([id,m]) => `<option value="${id}" ${id===selected?"selected":""}>${esc(m.short)}</option>`).join("");
+}
+function renderShifts(){
+  const blocks = [];
+  for(const s of shifts){
+    let b = blocks.find(x => x.name === s.block);
+    if(!b){ b = { name:s.block, kind:s.kind, order:s.blockOrder, slots:[] }; blocks.push(b); }
+    b.slots.push(s);
+  }
+  const mine = shifts.filter(s => s.assignee === me.id);
+  const intro = `<div class="card" style="margin-bottom:12px;">
+    <h3>Mein Einsatz</h3>
+    ${mine.length ? `<p style="margin:0; font-size:14px;">${mine.map(s => `<b>${esc(s.role)}</b> · ${esc(s.block)}${s.note ? ` (${esc(s.note)})` : ""}`).join("<br>")}</p>`
+                  : `<p class="rule-note" style="margin:0;">Du bist noch nirgends eingetragen. Wähle unten einen freien Platz mit «Ich übernehme».</p>`}
+  </div>`;
+  const cards = blocks.map(b => {
+    const filled = b.slots.filter(s => s.assignee).length;
+    const rows = b.slots.map(s => {
+      let who;
+      if(me.admin){
+        who = `<select data-action="assign" data-id="${s.id}" aria-label="Zuteilen">${memberOptions(s.assignee)}</select>
+               <button class="del-btn" data-action="del-shift" data-id="${s.id}" title="Slot löschen">✕</button>`;
+      } else if(s.assignee === me.id){
+        who = `<span class="slot-who me">Du</span>${canEdit() ? `<button class="btn-small" data-action="leave" data-id="${s.id}">Austragen</button>` : ""}`;
+      } else if(s.assignee){
+        who = `<span class="slot-who">${esc(s.assigneeName || MST.nameOf(s.assignee))}</span>`;
+      } else {
+        who = canEdit() ? `<button class="btn-small on" data-action="take" data-id="${s.id}">Ich übernehme</button>` : `<span class="slot-free">frei</span>`;
+      }
+      return `<div class="slot"><span class="slot-role"><b>${esc(s.role)}</b>${s.note ? `<span class="slot-note">${esc(s.note)}</span>` : ""}</span>${who}</div>`;
+    }).join("");
+    const add = me.admin ? `<form class="add-form" data-form="add-shift" data-block="${esc(b.name)}" data-kind="${b.kind}" data-order="${b.order}">
+        <input name="role" placeholder="Aufgabe" required><input name="note" placeholder="Zusatz (optional)">
+        <button class="btn-ghost" type="submit">+ Slot</button></form>` : "";
+    return `<div class="card block"><h3>${esc(b.name)}<span class="count">${filled}/${b.slots.length}<span class="kind-tag">${KIND_LABEL[b.kind] || ""}</span></span></h3>${rows}${add}</div>`;
+  }).join("");
+  const addBlock = me.admin ? `<div class="card" style="margin-top:12px;"><h3>Neuer Block</h3>
+    <form class="add-form" data-form="add-block" style="margin:0; padding:0; border:none;">
+      <input name="block" placeholder="z. B. Schicht 4 · 23:00–fertig" required>
+      <select name="kind"><option value="schicht">Schicht</option><option value="aufbau">Auf-/Abbau</option><option value="sonder">Sonderjob</option></select>
+      <input name="role" placeholder="Erste Aufgabe" required>
+      <button class="btn-ghost" type="submit">Anlegen</button>
+    </form></div>` : "";
+  return (isArchive() ? "" : intro) + `<div class="blocks">${cards}</div>` + addBlock;
+}
+
+/* ===================== CHECKLISTE / MATERIAL ===================== */
+function checkRow(x, list, body, meta){
+  const by = x.done ? `<span class="done-by">✓ ${esc(x.doneByName || MST.nameOf(x.doneBy))} · ${fmtStamp(x.doneAt)}</span>` : "";
+  const del = me.admin ? `<button class="del-btn" data-action="del-item" data-list="${list}" data-id="${x.id}" title="Löschen">✕</button>` : "";
+  return `<div class="check ${x.done ? "done" : ""}">
+    <input type="checkbox" data-action="tick" data-list="${list}" data-id="${x.id}" ${x.done ? "checked" : ""} ${canEdit() ? "" : "disabled"} aria-label="erledigt">
+    <div class="check-body"><span class="check-text">${body}</span><div class="check-meta">${meta}${by}</div></div>${del}
+  </div>`;
+}
+function progress(list){
+  const p = list.length ? Math.round(doneCount(list) / list.length * 100) : 0;
+  return `<div class="progress"><span style="width:${p}%"></span></div>`;
+}
+function renderTasks(){
+  let html = "", last = "";
+  for(const t of tasks){
+    if(t.month !== last){ html += `<div class="group-title">${esc(t.month)}</div>`; last = t.month; }
+    html += checkRow(t, "tasks", esc(t.text), t.who ? `<span class="who-chip">${esc(t.who)}</span>` : "");
+  }
+  const add = me.admin ? `<form class="add-form" data-form="add-task">
+      <select name="month">${MONTHS.map(m => `<option ${m==="Juni"?"selected":""}>${m}</option>`).join("")}</select>
+      <input name="text" placeholder="Aufgabe" required style="grid-column:span 2"><input name="who" placeholder="Wer (optional)">
+      <button class="btn-ghost" type="submit">+ Aufgabe</button></form>` : "";
+  return `<div class="card"><h3>Checkliste · ${doneCount(tasks)} von ${tasks.length} erledigt</h3>
+    ${progress(tasks)}<p class="rule-note" style="margin:0 0 10px;">Abhaken, wenn erledigt – dein Name und der Zeitpunkt werden gespeichert.</p>
+    ${html || '<p class="rule-note">Noch keine Aufgaben.</p>'}${add}</div>`;
+}
+function renderMaterial(){
+  let html = "", last = "";
+  for(const m of material){
+    if(m.group !== last){ html += `<div class="group-title">${esc(m.group)}</div>`; last = m.group; }
+    const meta = [m.qty ? `<span class="qty">${esc(m.qty)}</span>` : "", m.source ? `von ${esc(m.source)}` : "", m.resp ? `<span class="who-chip">${esc(m.resp)}</span>` : ""].filter(Boolean).join("");
+    html += checkRow(m, "material", esc(m.item), meta);
+  }
+  const groups = [...new Set(material.map(m => m.group))];
+  const add = me.admin ? `<form class="add-form" data-form="add-material">
+      <input name="group" list="groupList" placeholder="Gruppe" required><datalist id="groupList">${groups.map(g => `<option value="${esc(g)}">`).join("")}</datalist>
+      <input name="item" placeholder="Was" required><input name="qty" placeholder="Wieviel"><input name="source" placeholder="Wo / von wem"><input name="resp" placeholder="Wer holt">
+      <button class="btn-ghost" type="submit">+ Material</button></form>` : "";
+  return `<div class="card"><h3>Material · ${doneCount(material)} von ${material.length} da</h3>
+    ${progress(material)}<p class="rule-note" style="margin:0 0 10px;">Abhaken, sobald es organisiert bzw. vor Ort ist – mit deinem Namen und Zeitpunkt.</p>
+    ${html || '<p class="rule-note">Noch kein Material erfasst.</p>'}${add}</div>`;
+}
+
+/* ===================== KARTE ===================== */
+function renderMenu(){
+  const items = menu.items || [];
+  const mp = info.memberPrices || {};
+  let rows = "";
+  for(const cat of MENU_CATS){
+    const its = items.filter(i => i.cat === cat);
+    if(!its.length) continue;
+    rows += `<div class="menu-cat">${cat}</div>` + its.map(i => `<div class="menu-row">
+      <span>${esc(i.name)}</span><span class="size">${esc(i.size || "")}</span>
+      <span class="num">${price(i.price)}</span><span class="num" style="color:var(--yellow)">${price(mp[i.id])}</span></div>`).join("");
+  }
+  const view = `<div class="card">
+    <h3>Getränke- und Speisekarte ${esc(YEAR)}</h3>
+    <div class="menu-row head"><span></span><span>Grösse</span><span class="num">Gäste</span><span class="num">Proleten</span></div>
+    ${rows || '<p class="rule-note">Noch keine Karte.</p>'}
+    <p class="rule-note" style="margin:12px 0 0;">«Proleten» = Preis für Helfer/Mitglieder (nur hier sichtbar). Die Gästekarte ohne Login: <a href="${PUBLIC_URL}" target="_blank" rel="noopener">${esc(PUBLIC_URL.replace(/^https?:\/\//, ""))}</a></p>
+  </div>`;
+  if(!me.admin) return view;
+  if(!menuDraft) menuDraft = items.map(i => ({ ...i, member: mp[i.id] ?? null }));
+  const num = v => v == null ? "" : v;
+  const editor = `<div class="card admin-card">
+    <h3>Admin · Karte bearbeiten</h3>
+    <p class="rule-note" style="margin:0 0 12px;">Leerer Gästepreis = erscheint nicht auf der öffentlichen Karte. Leerer Proletenpreis = für Helfer nicht verfügbar.</p>
+    <form id="menuForm">
+      ${menuDraft.map((i, k) => `<div class="menu-edit" data-k="${k}">
+        <select name="cat">${MENU_CATS.map(c => `<option ${c===i.cat?"selected":""}>${c}</option>`).join("")}</select>
+        <input name="name" value="${esc(i.name)}" placeholder="Name" required>
+        <input name="size" value="${esc(i.size || "")}" placeholder="Grösse">
+        <input name="price" value="${num(i.price)}" inputmode="decimal" placeholder="Gäste">
+        <input name="member" value="${num(i.member)}" inputmode="decimal" placeholder="Proleten">
+        <button class="del-btn" type="button" data-action="menu-del" data-k="${k}" title="Zeile löschen" style="margin:0">✕</button>
+      </div>`).join("")}
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+        <button class="btn-ghost" type="button" data-action="menu-add">+ Zeile</button>
+        <button class="btn-primary" type="submit">Karte speichern</button>
+      </div>
+    </form>
+  </div>
+  <div class="card admin-card">
+    <h3>QR-Code für die Bar</h3>
+    <div class="qr-box"><div id="qr"></div>
+      <div><p style="margin:0 0 8px; font-size:13.5px;">Führt zur öffentlichen Karte (ohne Login, immer die aktuelle Ausgabe).</p>
+      <a class="btn-ghost" id="qrDownload" download="MST_Karte_QR.png" href="#" style="display:inline-block; text-decoration:none;">QR-Code als Bild speichern</a></div>
+    </div>
+  </div>`;
+  return view + editor;
+}
+function readMenuForm(){
+  const f = document.getElementById("menuForm");
+  if(!f) return;
+  const n = v => { const x = parseFloat(String(v).replace(",", ".")); return isNaN(x) ? null : x; };
+  f.querySelectorAll(".menu-edit").forEach(row => {
+    const i = menuDraft[+row.dataset.k];
+    i.cat = row.querySelector('[name=cat]').value;
+    i.name = row.querySelector('[name=name]').value.trim();
+    i.size = row.querySelector('[name=size]').value.trim();
+    i.price = n(row.querySelector('[name=price]').value);
+    i.member = n(row.querySelector('[name=member]').value);
+  });
+}
+
+/* ===================== HELFER ===================== */
+function renderHelpers(){
+  const per = {};
+  for(const s of shifts){
+    if(!s.assignee) continue;
+    const p = per[s.assignee] ||= { name:s.assigneeName || MST.nameOf(s.assignee), aufbau:0, schicht:0, sonder:[] };
+    if(s.kind === "sonder") p.sonder.push(s.role); else p[s.kind] = (p[s.kind] || 0) + 1;
+  }
+  const rows = Object.entries(per).sort((a,b) => (b[1].aufbau + b[1].schicht) - (a[1].aufbau + a[1].schicht) || a[1].name.localeCompare(b[1].name, "de"));
+  const open = shifts.filter(s => !s.assignee && s.kind !== "sonder").length;
+  const none = Object.keys(MST.directory).filter(id => !per[id]).map(id => MST.nameOf(id)).sort((a,b) => a.localeCompare(b, "de"));
+  return `<div class="card">
+    <h3>Helfereinsätze ${esc(YEAR)}</h3>
+    <p class="rule-note" style="margin:0 0 12px;">Zählt automatisch aus dem Einsatzplan – für die Helferliste an der GV. ${open ? `Noch ${open} Einsätze offen.` : "Alle Einsätze besetzt."}</p>
+    <div class="tbl-scroll"><table class="stats">
+      <thead><tr><th>Mitglied</th><th class="num">Schichten</th><th class="num">Auf-/Abbau</th><th class="num">Total</th><th>Sonderjob</th></tr></thead>
+      <tbody>${rows.map(([id,p]) => `<tr><td>${esc(p.name)}</td><td class="num">${p.schicht}</td><td class="num">${p.aufbau}</td>
+        <td class="num">${p.schicht + p.aufbau}</td><td class="wrap">${esc(p.sonder.join(", "))}</td></tr>`).join("")
+        || '<tr><td colspan="5" style="color:var(--muted)">Noch niemand eingetragen.</td></tr>'}</tbody>
+    </table></div>
+    ${none.length ? `<p class="rule-note" style="margin:12px 0 0;">Noch ohne Einsatz: ${esc(none.join(", "))}</p>` : ""}
+  </div>`;
+}
+
+/* ===================== VERWALTEN (Admin) ===================== */
+function renderAdmin(){
+  const nextYear = String(Math.max(...years.map(Number)) + 1);
+  return `<div class="card admin-card">
+    <h3>Afterworkbar ${esc(YEAR)} – Angaben</h3>
+    <form id="infoForm" class="add-form" style="margin:0; padding:0; border:none;">
+      <label>Datum (Freitag)<input name="date" type="date" value="${esc(info.date || "")}"></label>
+      <label>Ort<input name="place" value="${esc(info.place || "")}" placeholder="z. B. Hafen Ermatingen"></label>
+      <label>Bemerkung<input name="note" value="${esc(info.note || "")}"></label>
+      <button class="btn-primary" type="submit">Speichern</button>
+    </form>
+  </div>
+  <div class="card admin-card">
+    <h3>Neues Jahr anlegen</h3>
+    <p class="rule-note" style="margin:0 0 12px;">Kopiert Einsatzplan (ohne Namen), Checkliste und Material (ohne Häkchen) und die Karte von ${esc(YEAR)} ins neue Jahr und macht es zum aktuellen. ${esc(YEAR)} bleibt als Archiv lesbar.</p>
+    <form id="newYearForm" class="add-form" style="margin:0; padding:0; border:none;">
+      <label>Jahr<input name="year" value="${nextYear}" pattern="\\d{4}" required></label>
+      <button class="btn-primary" type="submit">Jahr anlegen</button>
+    </form>
+  </div>`;
+}
+async function createYear(y){
+  const src = yearRef(), dst = db.collection("awb").doc(y);
+  const batch = db.batch();
+  batch.set(dst, { date:"", place:info.place || "", note:`Vorlage aus ${YEAR}`, memberPrices:info.memberPrices || {} });
+  batch.set(db.collection("awbMenu").doc(y), { title:`Afterworkbar ${y}`, items:menu.items || [] });
+  shifts.forEach(s => { const { id, ...d } = s; batch.set(dst.collection("shifts").doc(id), { ...d, assignee:null, assigneeName:null, at:null }); });
+  tasks.forEach(t => { const { id, ...d } = t; batch.set(dst.collection("tasks").doc(id), { ...d, done:false, doneBy:null, doneByName:null, doneAt:null }); });
+  material.forEach(m => { const { id, ...d } = m; batch.set(dst.collection("material").doc(id), { ...d, done:false, doneBy:null, doneByName:null, doneAt:null }); });
+  batch.set(db.collection("config").doc("awb"), { currentYear:y }, { merge:true });
+  await batch.commit();
+}
+
+/* ===================== EVENTS ===================== */
+function attachHandlers(){
+  document.querySelectorAll(".tabbtn").forEach(b => b.onclick = () => { if(currentTab === "karte") readMenuForm(); currentTab = b.dataset.tab; render(); });
+  const ys = document.getElementById("yearSelect");
+  if(ys) ys.onchange = () => openYear(ys.value);
+  const panel = document.getElementById("panelContent");
+
+  panel.onclick = (e) => {
+    const t = e.target.closest("[data-action]");
+    if(!t || t.tagName === "SELECT" || t.type === "checkbox") return;
+    const a = t.dataset.action, s = shifts.find(x => x.id === t.dataset.id);
+    if(a === "take"){
+      write(yearRef().collection("shifts").doc(s.id).update({ assignee:me.id, assigneeName:me.short, at:Date.now() }),
+        `${me.short} übernimmt ${s.role} (${s.block})`);
+    } else if(a === "leave"){
+      write(yearRef().collection("shifts").doc(s.id).update({ assignee:null, assigneeName:null, at:null }),
+        `${me.short} trägt sich aus: ${s.role} (${s.block})`);
+    } else if(a === "del-shift"){
+      if(confirm(`Slot «${s.role}» in «${s.block}» löschen?`)) write(yearRef().collection("shifts").doc(s.id).delete(), `Slot gelöscht: ${s.role} (${s.block})`);
+    } else if(a === "del-item"){
+      const list = t.dataset.list, x = (list === "tasks" ? tasks : material).find(i => i.id === t.dataset.id);
+      if(confirm(`«${x.text || x.item}» löschen?`)) write(yearRef().collection(list).doc(x.id).delete(), `${list === "tasks" ? "Aufgabe" : "Material"} gelöscht: ${x.text || x.item}`);
+    } else if(a === "menu-add"){
+      readMenuForm(); menuDraft.push({ id:newId("i"), cat:"Bier", name:"", size:"", price:null, member:null }); render();
+    } else if(a === "menu-del"){
+      readMenuForm(); menuDraft.splice(+t.dataset.k, 1); render();
+    }
+  };
+  panel.onchange = (e) => {
+    const t = e.target;
+    if(t.dataset.action === "assign"){
+      const s = shifts.find(x => x.id === t.dataset.id), id = t.value || null;
+      write(yearRef().collection("shifts").doc(s.id).update({ assignee:id, assigneeName:id ? MST.nameOf(id) : null, at:id ? Date.now() : null }),
+        `${s.role} (${s.block}) → ${id ? MST.nameOf(id) : "frei"}`);
+    } else if(t.dataset.action === "tick"){
+      const list = t.dataset.list, x = (list === "tasks" ? tasks : material).find(i => i.id === t.dataset.id);
+      const on = t.checked;
+      write(yearRef().collection(list).doc(x.id).update(on
+          ? { done:true, doneBy:me.id, doneByName:me.short, doneAt:Date.now() }
+          : { done:false, doneBy:null, doneByName:null, doneAt:null }),
+        `${on ? "✓" : "☐"} ${x.text || x.item}`);
+    }
+  };
+  panel.querySelectorAll("form[data-form]").forEach(f => f.onsubmit = (e) => {
+    e.preventDefault();
+    const v = n => (f.elements[n] ? f.elements[n].value.trim() : "");
+    const kind = f.dataset.form;
+    if(kind === "add-shift" || kind === "add-block"){
+      const block = kind === "add-block" ? v("block") : f.dataset.block;
+      const blockOrder = kind === "add-block" ? Math.max(-1, ...shifts.map(s => s.blockOrder)) + 1 : +f.dataset.order;
+      const order = Math.max(-1, ...shifts.filter(s => s.block === block).map(s => s.order)) + 1;
+      write(yearRef().collection("shifts").doc(newId("s")).set({ block, blockOrder, kind: kind === "add-block" ? v("kind") : f.dataset.kind,
+        order, role:v("role"), note:v("note"), assignee:null, assigneeName:null, at:null }), `Slot angelegt: ${v("role")} (${block})`);
+    } else if(kind === "add-task"){
+      write(yearRef().collection("tasks").doc(newId("t")).set({ month:v("month"), order:Date.now(), text:v("text"), who:v("who"),
+        done:false, doneBy:null, doneByName:null, doneAt:null }), `Aufgabe angelegt: ${v("text")}`);
+    } else if(kind === "add-material"){
+      const same = material.filter(m => m.group === v("group"));
+      const order = same.length ? Math.max(...same.map(m => m.order)) + 0.5 : Date.now();
+      write(yearRef().collection("material").doc(newId("m")).set({ group:v("group"), order, item:v("item"), qty:v("qty"), source:v("source"), resp:v("resp"),
+        done:false, doneBy:null, doneByName:null, doneAt:null }), `Material angelegt: ${v("item")}`);
+    }
+  });
+
+  const mf = document.getElementById("menuForm");
+  if(mf) mf.onsubmit = (e) => {
+    e.preventDefault(); readMenuForm();
+    const items = menuDraft.filter(i => i.name).map(({ member, ...i }) => i);
+    const memberPrices = Object.fromEntries(menuDraft.filter(i => i.name).map(i => [i.id, i.member]));
+    const batch = db.batch();
+    batch.set(db.collection("awbMenu").doc(YEAR), { title:`Afterworkbar ${YEAR}`, items });
+    batch.set(yearRef(), { memberPrices }, { merge:true });
+    menuDraft = null;
+    write(batch.commit(), `Karte gespeichert (${items.length} Positionen)`);
+  };
+  const qr = document.getElementById("qr");
+  if(qr && window.QRCode){
+    new QRCode(qr, { text:PUBLIC_URL, width:600, height:600, correctLevel:QRCode.CorrectLevel.M });
+    setTimeout(() => { const c = qr.querySelector("canvas"); if(c) document.getElementById("qrDownload").href = c.toDataURL("image/png"); }, 100);
+  }
+  const inf = document.getElementById("infoForm");
+  if(inf) inf.onsubmit = (e) => {
+    e.preventDefault();
+    write(yearRef().set({ date:inf.date.value, place:inf.place.value.trim(), note:inf.note.value.trim() }, { merge:true }),
+      `Angaben gespeichert (${inf.date.value ? fmtDate(inf.date.value) : "Datum offen"})`);
+  };
+  const ny = document.getElementById("newYearForm");
+  if(ny) ny.onsubmit = async (e) => {
+    e.preventDefault();
+    const y = ny.year.value.trim();
+    if(years.includes(y)){ alert(`${y} gibt es schon.`); return; }
+    if(!confirm(`Afterworkbar ${y} aus ${YEAR} anlegen und zum aktuellen Jahr machen?`)) return;
+    try{
+      await createYear(y);
+      MST.log("awb", `Afterworkbar ${y} angelegt (Vorlage ${YEAR})`, { year:y });
+      CURRENT_YEAR = y; years = [y, ...years].sort().reverse(); currentTab = "einsatz";
+      openYear(y);
+    }catch(err){ console.error(err); alert("Anlegen fehlgeschlagen."); }
+  };
+}
+</script>
+</body>
+</html>

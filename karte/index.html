@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Afterworkbar · Karte</title>
+<link rel="icon" href="../assets/icon-192.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<meta name="theme-color" content="#141311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/mst.css">
+<style>
+  .menu{max-width:520px; margin:0 auto; padding:28px 16px 50px;}
+  .menu-head{text-align:center; margin-bottom:22px;}
+  .menu-head img{width:92px; height:auto;}
+  .menu-head .eyebrow{display:block; font-family:var(--font-mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--yellow); margin-top:10px;}
+  .menu-head h1{font-family:var(--font-display); text-transform:uppercase; font-size:clamp(30px,9vw,42px); line-height:1; margin:6px 0 0;}
+  .cat{margin-top:22px;}
+  .cat h2{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; font-size:17px; color:var(--yellow); margin:0 0 6px; padding-bottom:6px; border-bottom:1px solid var(--line-strong);}
+  .item{display:flex; align-items:baseline; gap:8px; padding:8px 0; font-size:16px;}
+  .item .name{font-weight:500;}
+  .item .size{color:var(--muted); font-size:13px; white-space:nowrap;}
+  .item .dots{flex:1; border-bottom:1px dotted var(--line-strong); transform:translateY(-4px);}
+  .item .price{font-family:var(--font-mono); font-weight:700; white-space:nowrap;}
+  .foot{text-align:center; color:var(--muted-2); font-size:12px; margin-top:30px;}
+</style>
+</head>
+<body>
+<main class="menu" id="menu"><div class="loading">lade Karte …</div></main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../js/mst.js" data-base="../"></script>
+<script>
+/* Öffentliche Gästekarte der Afterworkbar – ohne Login.
+   Zeigt immer die neueste Ausgabe aus awbMenu/<jahr>. */
+const CATS = ["Bier","Wein","Cocktails","Shots","Alkoholfrei","Vom Grill","Diverses"];
+const price = n => Number.isInteger(n) ? n + ".–" : n.toFixed(2);
+db.collection("awbMenu").get().then(snap => {
+  const docs = snap.docs.sort((a,b) => b.id.localeCompare(a.id));
+  const el = document.getElementById("menu");
+  if(!docs.length){ el.innerHTML = '<div class="loading">Die Karte folgt.</div>'; return; }
+  const m = docs[0].data();
+  const items = (m.items || []).filter(i => i.price != null);
+  el.innerHTML = `
+    <div class="menu-head">
+      <img src="../assets/logo.png" alt="MST Ermatingen">
+      <span class="eyebrow">MST Ermatingen</span>
+      <h1>${esc(m.title || "Afterworkbar")}</h1>
+    </div>
+    ${CATS.map(c => {
+      const its = items.filter(i => i.cat === c);
+      return its.length ? `<section class="cat"><h2>${c}</h2>${its.map(i => `
+        <div class="item"><span class="name">${esc(i.name)}</span>${i.size ? `<span class="size">${esc(i.size)}</span>` : ""}<span class="dots"></span><span class="price">${price(i.price)}</span></div>`).join("")}</section>` : "";
+    }).join("")}
+    <p class="foot">Preise in CHF · Prost! 🍻</p>`;
+}).catch(e => {
+  console.error(e);
+  document.getElementById("menu").innerHTML = '<div class="loading">Karte konnte nicht geladen werden.</div>';
+});
+</script>
+</body>
+</html>

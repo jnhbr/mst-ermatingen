@@ -90,5 +90,34 @@ service cloud.firestore {
       allow update: if hasSession() && resource.data.by == me() && request.resource.data.by == me();
       allow delete: if hasSession() && resource.data.by == me();
     }
+
+    // ---------- Afterworkbar ----------
+    // Öffentliche Karte (QR-Code an der Bar): für alle lesbar.
+    match /awbMenu/{year} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // awb/<jahr> = Datum, Mitgliederpreise usw.
+    match /awb/{year} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+    }
+    // Einsatzplan: Mitglieder tragen sich in einen freien Slot ein oder wieder aus.
+    match /awb/{year}/shifts/{id} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+      allow update: if hasSession()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignee', 'assigneeName', 'at'])
+        && ((resource.data.assignee == null && request.resource.data.assignee == me())
+            || (resource.data.assignee == me() && request.resource.data.assignee == null));
+    }
+    // Checkliste und Material: Mitglieder dürfen nur abhaken (mit eigenem Namen).
+    match /awb/{year}/{list}/{id} {
+      allow read: if isMember() && list in ['tasks', 'material'];
+      allow write: if isAdmin() && list in ['tasks', 'material'];
+      allow update: if hasSession() && list in ['tasks', 'material']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'doneBy', 'doneByName', 'doneAt'])
+        && (request.resource.data.done == false || request.resource.data.doneBy == me());
+    }
   }
 }

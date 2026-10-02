@@ -79,3 +79,67 @@ input:focus, select:focus{border-color:var(--yellow); outline:none;}
 .card h3{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.04em; font-size:14.5px; margin:0 0 12px; color:var(--white);}
 .rule-note{font-size:11.5px; color:var(--muted-2); margin:-6px 0 14px;}
 .footer-note{text-align:center; color:var(--muted-2); font-size:11.5px; margin-top:26px;}
+
+/* ===== Gemeinsame Bausteine der Bereiche (Padel, Afterworkbar, …) ===== */
+/* ---------- HERO ---------- */
+.hero{position:relative; padding:22px 4px 22px; display:flex; flex-wrap:wrap; gap:20px; align-items:flex-end; justify-content:space-between; overflow:hidden;}
+.hero-left{display:flex; gap:16px; align-items:center; z-index:1;}
+.hero-logo{width:60px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
+.hero-titles{display:flex; flex-direction:column; gap:3px;}
+.eyebrow{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--yellow);}
+.hero-title{font-family:var(--font-display); font-weight:700; text-transform:uppercase; letter-spacing:.02em; font-size:clamp(24px,5.5vw,38px); line-height:1.02; margin:0;}
+.hero-sub{color:var(--muted); font-size:13.5px; margin:0;}
+.hero-stats{display:flex; gap:8px; flex-wrap:wrap; z-index:1;}
+.stat-chip{background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm); padding:8px 14px; min-width:100px;}
+.stat-chip .num{font-family:var(--font-mono); font-weight:700; font-size:17px; color:var(--yellow); display:block; line-height:1.2;}
+.stat-chip .lbl{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
+.court-line{position:relative; height:1px; background:linear-gradient(90deg, transparent, var(--line-strong) 12%, var(--line-strong) 88%, transparent); margin:4px 4px 18px;}
+.court-line::after{content:""; position:absolute; left:50%; top:50%; width:8px; height:8px; background:var(--yellow); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 0 4px var(--bg), 0 0 0 5px var(--line-strong);}
+
+/* ---------- TABS ---------- */
+.tabbar{display:flex; gap:2px; flex-wrap:wrap; margin:0 4px 18px; border-bottom:1px solid var(--line);}
+.tabbtn{background:none; border:none; color:var(--muted); font-family:var(--font-display); text-transform:uppercase; letter-spacing:.04em; font-size:13.5px; font-weight:600; padding:10px 14px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;}
+.tabbtn:hover{color:var(--white);}
+.tabbtn.active{color:var(--yellow); border-bottom-color:var(--yellow);}
+.toolbar{display:flex; align-items:center; gap:12px; margin:0 4px 16px; justify-content:flex-end;}
+.save-indicator{font-size:11.5px; color:var(--muted-2); font-family:var(--font-mono); display:flex; align-items:center; gap:6px;}
+.save-dot{width:7px;height:7px;border-radius:50%; background:var(--muted-2);}
+.save-indicator.saving .save-dot{background:var(--yellow);}
+.save-indicator.saved .save-dot{background:var(--green);}
+.save-indicator.error .save-dot{background:var(--red);}
+section.panel{margin:0 4px;}
+
+/* ---------- STATISTIK ---------- */
+.tbl-scroll{overflow-x:auto;}
+table.stats{border-collapse:collapse; width:100%;}
+table.stats th, table.stats td{padding:10px 10px; border-bottom:1px solid var(--line); font-size:13.5px; text-align:left; white-space:nowrap;}
+table.stats th{font-family:var(--font-display); text-transform:uppercase; font-size:11px; letter-spacing:.04em; color:var(--muted); font-weight:500;}
+table.stats td.num, table.stats th.num{text-align:right; font-family:var(--font-mono);}
+table.stats tr.total-row td{border-top:2px solid var(--line-strong); border-bottom:none; font-weight:600; color:var(--white); padding-top:13px;}
+table.stats td.wrap{white-space:normal;}
+/* ---------- DIALOG ---------- */
+dialog{background:var(--bg-elev); color:var(--white); border:1px solid var(--line-strong); border-radius:var(--radius); padding:20px; width:min(420px, calc(100vw - 32px));}
+dialog::backdrop{background:rgba(0,0,0,.6);}
+dialog h3{font-family:var(--font-display); text-transform:uppercase; margin:0 0 4px; font-size:17px;}
+dialog .dlg-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+dialog form{display:flex; flex-direction:column; gap:12px;}
+.seg{display:flex; gap:6px;}
+.seg label{flex:1; flex-direction:row; justify-content:center; align-items:center; border:1px solid var(--line-strong); border-radius:var(--radius-sm); padding:9px; cursor:pointer; font-size:13px; color:var(--muted); text-transform:none; letter-spacing:0;}
+.seg input{display:none;}
+.seg label.on{border-color:var(--yellow); color:var(--yellow); background:var(--yellow-soft);}
+.dlg-actions{display:flex; gap:8px; justify-content:space-between; align-items:center; margin-top:4px; flex-wrap:wrap;}
+.dlg-actions .right{display:flex; gap:8px; margin-left:auto;}
+.btn-danger{background:none; border:1px solid var(--red); color:var(--red); border-radius:var(--radius-sm); padding:8px 12px; font-size:13px; cursor:pointer;}
+.btn-small{background:var(--bg-elev-2); color:var(--white); border:1px solid var(--line-strong); border-radius:20px; padding:6px 13px; font-size:12.5px; cursor:pointer;}
+.btn-small:hover{border-color:var(--yellow);}
+.btn-small.on{background:var(--yellow); color:#141311; border-color:var(--yellow); font-weight:600;}
+.drinkers{display:flex; flex-wrap:wrap; gap:7px; margin:14px 0 4px;}
+.drinker{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-strong); border-radius:20px; padding:6px 12px; font-size:13px; cursor:pointer; color:var(--muted); text-transform:none; letter-spacing:0; flex-direction:row;}
+.drinker input{accent-color:var(--yellow); width:15px; height:15px; padding:0; margin:0;}
+.drinker.on{border-color:var(--yellow); color:var(--white); background:var(--yellow-soft);}
+textarea{background:var(--bg); color:var(--white); border:1px solid var(--line-strong); border-radius:var(--radius-sm); padding:10px 12px; font-size:14px; font-family:var(--font-mono); text-transform:none; letter-spacing:0; resize:vertical;}
+.del-btn{background:none; border:1px solid var(--line-strong); color:var(--muted-2); border-radius:6px; padding:3px 8px; font-size:11.5px; cursor:pointer; margin-left:8px;}
+.del-btn:hover{border-color:var(--red); color:var(--red);}
+
+.admin-card{border-color:var(--yellow-soft);}
+.season-select{margin-top:8px; padding:5px 8px; font-size:12.5px; background:var(--bg-elev); width:auto;}

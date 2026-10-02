@@ -19,3 +19,8 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
 - `padel/<Saison>/beer/<id>` – Bierrunden
 
 Bis 2.10.2026 lief Padel auf Netlify (mst-padel.netlify.app, Repo `MST-Ermatingen-Padel`); die Daten wurden übernommen.
+
+## Cache
+`css/mst.css` und `js/mst.js` werden mit `?v=<Zeitstempel>` eingebunden (GitHub Pages cacht 10 Min.).
+Nach jeder Änderung an diesen Dateien die Nummer in allen HTML-Seiten erhöhen, sonst sehen Leute
+neue Seiten mit altem Stylesheet.

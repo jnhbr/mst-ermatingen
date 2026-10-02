@@ -42,6 +42,11 @@
   table.members td, table.members th{padding:7px 8px; border-bottom:1px solid var(--line); text-align:left;}
   table.members th{font-family:var(--font-display); text-transform:uppercase; font-size:11px; color:var(--muted); font-weight:500;}
   .tbl-scroll{overflow-x:auto;}
+  .log-list ul{list-style:none; margin:0; padding:0; max-height:520px; overflow:auto;}
+  .log-list li{display:grid; grid-template-columns:130px 150px 1fr; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .log-time{font-family:var(--font-mono); font-size:11.5px; color:var(--muted);}
+  .log-who{color:var(--yellow);}
+  @media (max-width:720px){ .log-list li{grid-template-columns:1fr 1fr;} .log-text{grid-column:1/-1;} }
   .form-msg{font-size:12.5px; color:var(--muted); margin:8px 0 0; min-height:1.2em;}
 </style>
 </head>
@@ -126,7 +131,13 @@ function renderAdmin(){
         <thead><tr><th>Nr.</th><th>Name</th><th>Kurzname</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
+    </div>
+    <div class="card">
+      <h3>Änderungsprotokoll</h3>
+      <p class="rule-note" style="margin:0 0 12px;">Wer hat wann was eingetragen, geändert oder gelöscht (neueste zuerst, letzte 300). Sieht nur der Admin.</p>
+      <div id="logList" class="log-list"><p class="form-msg">lade …</p></div>
     </div>`;
+  loadLog();
   document.getElementById("memberForm").onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target, msg = document.getElementById("memberMsg");
@@ -143,6 +154,7 @@ function renderAdmin(){
         short: f.short.value.trim() || vorname
       });
       await batch.commit();
+      MST.log("verein", `Mitglied ${nr} ${(vorname + " " + nachname).trim()} gespeichert`);
       msg.textContent = `Gespeichert: ${nr} ${vorname}. Login = Nummer ${nr} + Vorname «${vorname.split(/\s+/)[0]}».`;
       await MST.loadDirectory();
       setTimeout(renderAdmin, 1200);
@@ -151,6 +163,19 @@ function renderAdmin(){
       msg.textContent = "Speichern fehlgeschlagen.";
     }
   };
+}
+
+async function loadLog(){
+  const el = document.getElementById("logList");
+  try{
+    const snap = await db.collection("log").orderBy("at", "desc").limit(300).get();
+    if(snap.empty){ el.innerHTML = '<p class="form-msg">Noch keine Einträge.</p>'; return; }
+    const fmt = t => new Date(t).toLocaleString("de-CH", { weekday:"short", day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
+    el.innerHTML = '<ul>' + snap.docs.map(d => {
+      const x = d.data();
+      return `<li><span class="log-time">${fmt(x.at)}</span><span class="log-who">${esc(x.byName || x.by)}</span><span class="log-text">${esc(x.text)}</span></li>`;
+    }).join("") + '</ul>';
+  }catch(e){ console.error(e); el.innerHTML = '<p class="form-msg">Protokoll konnte nicht geladen werden.</p>'; }
 }
 </script>
 </body>

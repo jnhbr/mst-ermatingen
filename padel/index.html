@@ -154,6 +154,30 @@
   ul.ball-list li svg{flex-shrink:0; margin-top:2px;}
   ul.ball-list li b{color:var(--white); font-weight:600;}
 
+  textarea{background:var(--bg); color:var(--white); border:1px solid var(--line-strong); border-radius:var(--radius-sm); padding:10px 12px; font-size:14px; font-family:var(--font-mono); text-transform:none; letter-spacing:0; resize:vertical;}
+  .admin-card{border-color:var(--yellow-soft);}
+
+  /* ---------- MEIN STAND ---------- */
+  .my-card{margin-bottom:12px; background:linear-gradient(160deg, var(--yellow-soft), var(--bg-elev) 55%);}
+  .my-grid{display:grid; grid-template-columns:minmax(260px,2fr) repeat(3, minmax(110px,1fr)); gap:14px; align-items:start;}
+  @media (max-width:720px){ .my-grid{grid-template-columns:1fr 1fr 1fr;} .my-next{grid-column:1/-1;} }
+  .my-lbl{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:4px;}
+  .my-val{font-family:var(--font-display); font-size:19px; text-transform:uppercase;}
+  .my-status{font-family:var(--font-body); font-size:12px; text-transform:none; padding:3px 9px; border-radius:20px; margin-left:6px; vertical-align:middle; white-space:nowrap;}
+  .my-status.green{background:var(--green-soft); color:var(--green);}
+  .my-status.red, .my-status.cancelled{background:var(--red-soft); color:var(--red);}
+  .my-status.neutral{background:var(--yellow-soft); color:var(--yellow);}
+  .my-status.muted{background:var(--bg-elev-2); color:var(--muted);}
+  .my-actions{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
+  .btn-small{background:var(--bg-elev-2); color:var(--white); border:1px solid var(--line-strong); border-radius:20px; padding:6px 13px; font-size:12.5px; cursor:pointer;}
+  .btn-small:hover{border-color:var(--yellow);}
+  .btn-small.on{background:var(--yellow); color:#141311; border-color:var(--yellow); font-weight:600;}
+  .my-big{font-family:var(--font-mono); font-size:18px; font-weight:700; color:var(--white); white-space:nowrap;}
+  @media (max-width:720px){ .my-big{font-size:14px;} .my-grid{gap:10px;} }
+  .my-big.pos{color:var(--green);}
+  .my-big.neg{color:var(--red);}
+  .season-select{margin-top:8px; padding:5px 8px; font-size:12.5px; background:var(--bg-elev); width:auto;}
+
   /* ---------- DIALOG ---------- */
   dialog{background:var(--bg-elev); color:var(--white); border:1px solid var(--line-strong); border-radius:var(--radius); padding:20px; width:min(420px, calc(100vw - 32px));}
   dialog::backdrop{background:rgba(0,0,0,.6);}
@@ -179,47 +203,42 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="../js/mst.js" data-base="../"></script>
 <script>
-/* ===================== SAISON ===================== */
-const SEASON = "2026-27";
-// Die 7 Fixen (Mitgliedernummer -> Kurzname). Sie haben die Saison im Voraus
-// bezahlt und rechnen am Schluss untereinander ab.
-const FIXED = [
-  { id:"m10", short:"Jan" },
-  { id:"m7",  short:"Pascal" },
-  { id:"m13", short:"Lehner" },
-  { id:"m30", short:"Nicola" },
-  { id:"m25", short:"Noel" },
-  { id:"m23", short:"Sven B." },
-  { id:"m19", short:"Sven G." }
-];
-const FIXED_IDS = FIXED.map(f => f.id);
+/* ===================== SAISON =====================
+   Jede Saison ist ein Dokument padel/<id> mit ihrer Konfiguration
+   (Zeitraum, Preise, die Fixen, Ausfälle der Halle). config/padel.currentSeason
+   bestimmt die aktuelle Saison; ältere bleiben als Archiv lesbar. */
+let SEASON = null, CURRENT_SEASON = null, CFG = null;
+let seasonsList = [];   // [{ id, label }]
+let FIXED = [], FIXED_IDS = [], SESSIONS = [], VENUE_CANCELLED = {};
+let HOURLY_RATE, SESSION_HOURS, SESSION_COST, CLUB_PCT, GROUP_SESSION_COST, PER_PLAYER_COST, CANCELLED_SHARE;
+const SESSIONS_OPEN_AHEAD = 2;
 const fixName = id => (FIXED.find(f => f.id === id) || {}).short || MST.nameOf(id);
 
-function buildSessions(){
+function buildSessions(start, end){
   // Rein in UTC gerechnet, sonst rutscht in der Schweiz (UTC+1/+2) jeder
   // Donnerstag auf den Mittwoch davor.
-  const dates=[];
-  let d = new Date(Date.UTC(2026, 9, 1));   // 1.10.2026
-  const end = new Date(Date.UTC(2027, 3, 29)); // 29.4.2027
-  while(d <= end){ dates.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+7); }
+  const dates = [];
+  const d = new Date(start + "T00:00:00Z"), last = new Date(end + "T00:00:00Z");
+  while(d <= last){ dates.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+7); }
   return dates;
 }
-const SESSIONS = buildSessions();
-const HOURLY_RATE = 55;
-const SESSION_HOURS = 1.5;
-const SESSION_COST = HOURLY_RATE * SESSION_HOURS;           // 82.50
-const CLUB_PCT = 0.10;
-const GROUP_SESSION_COST = SESSION_COST * (1 - CLUB_PCT);  // 74.25
-const PER_PLAYER_COST = GROUP_SESSION_COST / 4;            // 18.5625
-const CANCELLED_SHARE = GROUP_SESSION_COST / FIXED.length; // Absage: alle 7 Fixen tragen den Termin
-// Von der Tennishalle gestrichen (Rechnung R-2600075 vom 15.08.2026): kostet nichts.
-const VENUE_CANCELLED = {
-  "2026-10-22": "Firmen-Event der Tennishalle",
-  "2026-10-29": "Firmen-Event der Tennishalle",
-  "2026-12-24": "Ausfall gemäss Rechnung Tennishalle",
-  "2026-12-31": "Ausfall gemäss Rechnung Tennishalle"
-};
-const SESSIONS_OPEN_AHEAD = 2;
+function applySeason(id, cfg){
+  SEASON = id; CFG = cfg;
+  FIXED = cfg.fixed || [];
+  FIXED_IDS = FIXED.map(f => f.id);
+  SESSIONS = buildSessions(cfg.start, cfg.end);
+  VENUE_CANCELLED = cfg.venueCancelled || {};
+  HOURLY_RATE = cfg.hourlyRate;
+  SESSION_HOURS = cfg.hours;
+  SESSION_COST = HOURLY_RATE * SESSION_HOURS;
+  CLUB_PCT = cfg.clubPct;
+  GROUP_SESSION_COST = SESSION_COST * (1 - CLUB_PCT);
+  PER_PLAYER_COST = GROUP_SESSION_COST / 4;
+  CANCELLED_SHARE = FIXED.length ? GROUP_SESSION_COST / FIXED.length : 0; // Absage: alle Fixen tragen den Termin
+}
+const seasonLabel = id => "Saison " + id.replace(/^20(\d\d)-(\d\d)$/, "$1/$2");
+const isArchive = () => SEASON !== CURRENT_SEASON;
+const canEdit = () => me.admin || !isArchive();
 
 function todayISO(){
   const now = new Date();
@@ -227,16 +246,17 @@ function todayISO(){
 }
 
 /* ===================== DATEN (Firestore) =====================
+   padel/<SEASON>                 Konfiguration der Saison
    padel/<SEASON>/days/<datum>:
-     <memberId>: Zeitstempel (kann) | "declined" (kann nicht)   – nur die 7 Fixen
+     <memberId>: Zeitstempel (kann) | "declined" (kann nicht)   – nur die Fixen
      extras: { x_…: { typ:"gast"|"mitglied", name, memberId?, ts, paidTo, by } }
      cancelled: true                                             – nur Admin
    padel/<SEASON>/beer/<id>:
-     { date, payer, amount, drinkers:[memberId | x_…], note, by, at } */
-const seasonRef = db.collection("padel").doc(SEASON);
-const daysCol = seasonRef.collection("days");
-const beerCol = seasonRef.collection("beer");
+     { date, payer, amount, drinkers:[memberId | x_…], note, by, at }
+   log/<id>:  Änderungsprotokoll { at, by, byName, area, season, text } */
 const FV = firebase.firestore.FieldValue;
+let daysCol = null, beerCol = null;
+let unsub = [];
 
 let days = {};
 let beers = [];
@@ -245,22 +265,45 @@ let currentTab = "verfuegbarkeit";
 let saveStatus = "idle";
 let me = null; // MST.user
 
-MST.start((user) => {
+MST.start(async (user) => {
   me = user;
-  daysCol.onSnapshot(snap => {
+  const [conf, seasons] = await Promise.all([db.collection("config").doc("padel").get(), db.collection("padel").get()]);
+  CURRENT_SEASON = conf.exists ? conf.data().currentSeason : null;
+  seasonsList = [];
+  seasons.forEach(d => seasonsList.push({ id:d.id, cfg:d.data() }));
+  seasonsList.sort((a,b) => b.id.localeCompare(a.id));
+  const wanted = new URLSearchParams(location.search).get("saison");
+  openSeason(seasonsList.find(s => s.id === wanted) ? wanted : (CURRENT_SEASON || (seasonsList[0] && seasonsList[0].id)));
+});
+
+function openSeason(id){
+  unsub.forEach(f => f()); unsub = [];
+  const s = seasonsList.find(x => x.id === id);
+  if(!s){ document.getElementById("app").innerHTML = '<div class="loading">Noch keine Saison angelegt.</div>'; return; }
+  applySeason(id, s.cfg);
+  days = {}; beers = []; loadedDays = loadedBeer = false; beerDraft = null;
+  render();
+  const seasonRef = db.collection("padel").doc(id);
+  daysCol = seasonRef.collection("days");
+  beerCol = seasonRef.collection("beer");
+  unsub.push(daysCol.onSnapshot(snap => {
     days = {}; snap.forEach(d => { days[d.id] = d.data(); });
     loadedDays = true; render();
-  }, err => { console.error(err); saveStatus="error"; updateSaveIndicatorOnly(); });
-  beerCol.onSnapshot(snap => {
+  }, err => { console.error(err); saveStatus="error"; updateSaveIndicatorOnly(); }));
+  unsub.push(beerCol.onSnapshot(snap => {
     beers = []; snap.forEach(d => beers.push({ id:d.id, ...d.data() }));
     beers.sort((a,b) => (b.date.localeCompare(a.date)) || (b.at - a.at));
     loadedBeer = true; render();
-  }, err => { console.error(err); saveStatus="error"; updateSaveIndicatorOnly(); });
-});
+  }, err => { console.error(err); saveStatus="error"; updateSaveIndicatorOnly(); }));
+}
 
-async function write(promise){
+/* Speichern + Eintrag ins Änderungsprotokoll (sieht nur der Admin). */
+async function write(promise, text){
   saveStatus = "saving"; updateSaveIndicatorOnly();
-  try{ await promise; saveStatus = "saved"; }
+  try{
+    await promise; saveStatus = "saved";
+    if(text) MST.log("padel", `${seasonLabel(SEASON)} · ${text}`, { season:SEASON });
+  }
   catch(e){ console.error(e); saveStatus = "error"; alert("Konnte nicht gespeichert werden (keine Berechtigung oder keine Verbindung)."); }
   updateSaveIndicatorOnly();
 }
@@ -328,7 +371,7 @@ function deriveAll(){
     for(const p of confirmed){
       if(!p.startsWith("x_")){ games[p]++; court[p] += PER_PLAYER_COST; continue; }
       const x = extras.find(e => e.key === p);
-      const row = { date:d, key:p, label:extraLabel(x), paidTo:x.paidTo||null, court:PER_PLAYER_COST, beer:0 };
+      const row = { date:d, key:p, label:extraLabel(x), memberId:x.memberId||null, paidTo:x.paidTo||null, court:PER_PLAYER_COST, beer:0 };
       extraLedger.push(row);
       if(row.paidTo) collected[row.paidTo] += PER_PLAYER_COST;
       else openItems.push(`${dateD1(d)}: ${row.label} hat gespielt – noch offen, wem bezahlt`);
@@ -346,7 +389,7 @@ function deriveAll(){
       const x = extrasOf(b.date).find(e => e.key === id);
       if(x){
         let row = extraLedger.find(r => r.key === id);
-        if(!row){ row = { date:b.date, key:id, label:extraLabel(x), paidTo:x.paidTo||null, court:0, beer:0 }; extraLedger.push(row); }
+        if(!row){ row = { date:b.date, key:id, label:extraLabel(x), memberId:x.memberId||null, paidTo:x.paidTo||null, court:0, beer:0 }; extraLedger.push(row); }
         row.beer += share;
         if(x.paidTo){ collected[x.paidTo] += share; continue; }
         openItems.push(`${dateD1(b.date)}: Bieranteil von ${extraLabel(x)} – noch offen, wem bezahlt`);
@@ -369,12 +412,18 @@ function withinRegistrationWindow(d){
   if(dIdx === -1 || dIdx < idx) return true;
   return dIdx <= idx + (SESSIONS_OPEN_AHEAD - 1);
 }
-const canEditFix = id => me.admin || me.id === id;
+const canEditFix = id => me.admin || (!isArchive() && me.id === id);
 
 /* ===================== FORMAT ===================== */
 function chf(n){ return "CHF " + n.toLocaleString("de-CH",{minimumFractionDigits:2, maximumFractionDigits:2}); }
 function dateD1(d){ const dt=new Date(d+"T00:00:00"); return dt.toLocaleDateString("de-CH",{weekday:"short", day:"2-digit", month:"2-digit"}); }
 function monthLabel(d){ const dt=new Date(d+"T00:00:00"); const s=dt.toLocaleDateString("de-CH",{month:"long", year:"numeric"}); return s.charAt(0).toUpperCase()+s.slice(1); }
+function fmtDate(d){ const [y,m,dd] = d.split("-"); return `${dd}.${m}.${y}`; }
+function seasonPicker(){
+  if(seasonsList.length < 2) return "";
+  return `<select class="season-select" id="seasonSelect" aria-label="Saison wählen">${seasonsList.map(x =>
+    `<option value="${x.id}" ${x.id===SEASON?"selected":""}>${seasonLabel(x.id)}${x.id===CURRENT_SEASON?" (aktuell)":""}</option>`).join("")}</select>`;
+}
 function sessionStatus(d, sess){
   if(sess.ausfall) return "ausfall";
   if(sess.cancelled) return "cancelled";
@@ -439,9 +488,9 @@ function renderHero(){
     <div class="hero-left">
       <img class="hero-logo" src="../assets/logo.png" alt="MST Ermatingen Wappen">
       <div class="hero-titles">
-        <span class="eyebrow">Padelgruppe · Saison 26/27</span>
+        <span class="eyebrow">Padelgruppe · ${seasonLabel(SEASON)}${isArchive() ? " · Archiv" : ""}</span>
         <h1 class="hero-title">MST Padel</h1>
-        <p class="hero-sub">Padel am See, Kreuzlingen · jeden Donnerstag 18:00–19:30</p>
+        <p class="hero-sub">${esc(CFG.place)} · ${esc(CFG.time)}</p>${seasonPicker()}
       </div>
     </div>
     <div class="hero-stats">
@@ -464,14 +513,14 @@ function renderTabContent(derived){
   if(currentTab==="verfuegbarkeit") return renderAvailabilityTab(derived);
   if(currentTab==="bier") return renderBeerTab(derived);
   if(currentTab==="statistik") return renderStatistikTab(derived);
-  if(currentTab==="info") return renderInfoTab();
+  if(currentTab==="info") return renderInfoTab() + (me.admin ? renderSeasonAdmin() : "");
   return "";
 }
 
 /* ===================== TAB: VERFÜGBARKEIT ===================== */
 function infoLine(sess, d){
   if(sess.ausfall) return `<span class="ausfall-text">Ausfall – ${sess.ausfallReason}. Keine Kosten, zählt nicht mit.</span>`;
-  if(sess.cancelled) return `<span>Abgesagt – Feldkosten (${chf(GROUP_SESSION_COST)}) tragen alle 7 Fixen (je ${chf(CANCELLED_SHARE)}).</span>`;
+  if(sess.cancelled) return `<span>Abgesagt – Feldkosten (${chf(GROUP_SESSION_COST)}) tragen alle ${FIXED.length} Fixen (je ${chf(CANCELLED_SHARE)}).</span>`;
   const n = sess.fixAvail.length + sess.extras.length;
   if(!sess.quorum) return `<span>${n}/4 angemeldet – wartet auf weitere Anmeldungen.</span>`;
   const all = [...sess.fixAvail, ...sess.extras.map(x => x.key)];
@@ -481,7 +530,7 @@ function infoLine(sess, d){
   return `<span>${txt}</span>`;
 }
 function extraChips(d, sess){
-  const editable = !sess.cancelled && !sess.ausfall;
+  const editable = canEdit() && !sess.cancelled && !sess.ausfall;
   const chips = sess.extras.map(x => {
     const paid = x.paidTo ? `<span class="paid">→ ${esc(fixName(x.paidTo))}</span>` : `<span class="paid open">→ offen</span>`;
     return `<button class="chip extra ${kindCls(stateOf(sess, x.key))}" data-action="edit-extra" data-date="${d}" data-key="${x.key}" ${editable?"":"disabled"} title="Gast/Mitglied bearbeiten">${esc(extraLabel(x))}${paid}</button>`;
@@ -540,6 +589,75 @@ function buildCards(dates, derived){
   }
   return cards;
 }
+function computeNet(derived){
+  const share = upfrontShare(), net = {};
+  FIXED_IDS.forEach(p => { net[p] = share - derived.court[p] - derived.collected[p] + derived.beerPaid[p] - derived.beerShare[p]; });
+  return net;
+}
+
+/* «Mein Stand»: nächster Termin + eigene Zahlen, direkt nach dem Login sichtbar. */
+function renderMyStatus(derived){
+  if(isArchive()) return "";
+  const today = todayISO();
+  const next = SESSIONS.find(d => d >= today && !VENUE_CANCELLED[d]);
+  const isFix = FIXED_IDS.includes(me.id);
+  let nextHtml = `<div class="my-next"><span class="my-lbl">Nächster Termin</span><span class="my-val">Saison ist vorbei</span></div>`;
+  if(next){
+    const sess = derived.perSession[next];
+    let status, cls, actions = "";
+    if(sess.cancelled){ status = "abgesagt"; cls = "cancelled"; }
+    else if(isFix){
+      const k = stateOf(sess, me.id);
+      [status, cls] = { green:["du spielst", "green"], red:["Ersatz", "red"], neutral:["angemeldet, Gruppe noch offen", "neutral"],
+                        declined:["kann nicht", "muted"], empty:["noch keine Angabe", "muted"] }[k];
+      const within = withinRegistrationWindow(next);
+      const val = sess.day[me.id];
+      actions = `<div class="my-actions">
+        ${within ? `<button class="btn-small ${typeof val === "number" ? "on" : ""}" data-action="set-own" data-date="${next}" data-val="kann">Kann</button>` : ""}
+        <button class="btn-small ${val === "declined" ? "on" : ""}" data-action="set-own" data-date="${next}" data-val="declined">Kann nicht</button>
+        ${val !== undefined ? `<button class="btn-small" data-action="set-own" data-date="${next}" data-val="clear">Zurücksetzen</button>` : ""}
+      </div>`;
+    } else {
+      const mine = sess.extras.find(x => x.memberId === me.id);
+      if(mine){
+        const k = stateOf(sess, mine.key);
+        [status, cls] = { green:["du spielst", "green"], red:["Ersatz – die Fixen haben Vorrang", "red"], neutral:["eingetragen, Gruppe noch offen", "neutral"] }[k] || ["eingetragen", "neutral"];
+      } else {
+        const filled = sess.fixAvail.length + sess.extras.length;
+        status = filled >= 4 ? "voll (du kannst dich als Ersatz eintragen)" : `${4 - filled} ${4 - filled === 1 ? "Platz" : "Plätze"} frei`;
+        cls = filled >= 4 ? "muted" : "green";
+        actions = `<div class="my-actions"><button class="btn-small on" data-action="add-extra" data-date="${next}" data-typ="mitglied">Ich spiele mit</button></div>`;
+      }
+    }
+    nextHtml = `<div class="my-next">
+      <span class="my-lbl">Nächster Termin</span>
+      <span class="my-val">${dateD1(next)} <span class="my-status ${cls}">${status}</span></span>
+      ${actions}
+    </div>`;
+  }
+  let nums = "";
+  if(isFix){
+    const n = computeNet(derived)[me.id];
+    const beer = derived.beerPaid[me.id] - derived.beerShare[me.id];
+    nums = `
+      <div class="my-num"><span class="my-lbl">Spiele</span><span class="my-big">${derived.games[me.id]}</span></div>
+      <div class="my-num"><span class="my-lbl">Dein Saldo</span><span class="my-big ${n < -0.05 ? "neg" : "pos"}">${n < 0 ? "− " : "+ "}${chf(Math.abs(n))}</span></div>
+      <div class="my-num"><span class="my-lbl">Bier ±</span><span class="my-big ${beer < -0.005 ? "neg" : ""}">${beer < 0 ? "− " : "+ "}${chf(Math.abs(beer))}</span></div>`;
+  } else {
+    const rows = derived.extraLedger.filter(r => r.memberId === me.id);
+    const total = rows.reduce((t,r) => t + r.court + r.beer, 0);
+    const open = rows.filter(r => !r.paidTo).reduce((t,r) => t + r.court + r.beer, 0);
+    nums = `
+      <div class="my-num"><span class="my-lbl">Gespielt</span><span class="my-big">${rows.filter(r => r.court > 0).length}</span></div>
+      <div class="my-num"><span class="my-lbl">Dein Anteil total</span><span class="my-big">${chf(total)}</span></div>
+      <div class="my-num"><span class="my-lbl">Noch nicht bezahlt</span><span class="my-big ${open > 0.005 ? "neg" : ""}">${chf(open)}</span></div>`;
+  }
+  return `<div class="card my-card">
+    <h3>Mein Stand · ${esc(me.short)}</h3>
+    <div class="my-grid">${nextHtml}${nums}</div>
+  </div>`;
+}
+
 function renderAvailabilityTab(derived){
   const isFix = FIXED_IDS.includes(me.id);
   const legend = `
@@ -552,7 +670,7 @@ function renderAvailabilityTab(derived){
     <p class="rule-note">${isFix || me.admin
       ? `Dein Feld: 1× klicken = kann, 2× = kann nicht, 3× = leer. «Kann» geht für die nächsten 2 Termine, eine Absage jederzeit.`
       : `Du bist nicht in der Fixgruppe: Über <b>+ Mitglied</b> kannst du dich für einen Termin eintragen, wenn ein Platz frei ist.`}
-      Die 7 Fixen haben Vorrang, Gäste und Mitglieder füllen freie Plätze auf und zahlen ihren Anteil (${chf(PER_PLAYER_COST)}) bar einem der Fixen.</p>`;
+      Die ${FIXED.length} Fixen haben Vorrang, Gäste und Mitglieder füllen freie Plätze auf und zahlen ihren Anteil (${chf(PER_PLAYER_COST)}) bar einem der Fixen.</p>`;
   const today = todayISO();
   const futureDates = SESSIONS.filter(d => d >= today);
   const pastDates = SESSIONS.filter(d => d < today);
@@ -564,7 +682,7 @@ function renderAvailabilityTab(derived){
     <details class="past-details only-desktop"><summary>Vergangene Termine anzeigen (${pastDates.length})</summary>${table(pastDates)}</details>
     <details class="past-details only-mobile"><summary>Vergangene Termine anzeigen (${pastDates.length})</summary>${buildCards(pastDates, derived)}</details>`;
   }
-  return `
+  return renderMyStatus(derived) + `
   <div class="card">
     ${legend}
     ${futureDates.length ? "" : '<p style="color:var(--muted); font-size:13px;">Saison ist vorbei – alle Termine stehen unten.</p>'}
@@ -619,7 +737,7 @@ function openExtraDialog(d, opts){
       const usedInBeer = beers.some(b => b.date === d && (b.drinkers||[]).includes(existing.key));
       if(usedInBeer && !confirm("Dieser Gast ist in einer Bierrunde eingetragen. Trotzdem entfernen?")) return;
       dlg.close();
-      write(daysCol.doc(d).update({ ["extras." + existing.key]: FV.delete() }));
+      write(daysCol.doc(d).update({ ["extras." + existing.key]: FV.delete() }), `${dateD1(d)}: ${extraLabel(existing)} entfernt`);
     };
     dlg.querySelector("#extraForm").onsubmit = (e) => {
       e.preventDefault();
@@ -635,7 +753,8 @@ function openExtraDialog(d, opts){
       }
       const key = existing ? existing.key : "x_" + Math.random().toString(36).slice(2, 10);
       dlg.close();
-      write(daysCol.doc(d).set({ extras: { [key]: entry } }, { merge:true }));
+      write(daysCol.doc(d).set({ extras: { [key]: entry } }, { merge:true }),
+        `${dateD1(d)}: ${extraLabel(entry)} ${existing ? "geändert" : "eingetragen"}, bezahlt an ${entry.paidTo ? fixName(entry.paidTo) : "offen"}`);
     };
   };
   draw();
@@ -685,7 +804,7 @@ function renderBeerTab(derived){
       </form>
     </div>`;
   const list = beers.length ? `<ul class="beer-list">${beers.map(b => {
-      const canDel = me.admin || b.by === me.id;
+      const canDel = me.admin || (canEdit() && b.by === me.id);
       const per = (b.drinkers||[]).length ? b.amount / b.drinkers.length : 0;
       return `<li>
         <div>
@@ -696,7 +815,7 @@ function renderBeerTab(derived){
       </li>`;
     }).join("")}</ul>` : `<p class="rule-note" style="margin:0;">Noch keine Bierrunden erfasst.</p>`;
   const total = beers.reduce((s,b) => s + (Number(b.amount)||0), 0);
-  return form + `
+  return (canEdit() ? form : "") + `
     <div class="card">
       <h3>Bisherige Bierrunden · total ${chf(total)}</h3>
       ${list}
@@ -737,7 +856,7 @@ function renderStatistikTab(derived){
         <tr class="total-row"><td>Total gespielt (inkl. Gäste)</td><td class="num">${totalGames}</td><td></td></tr>
       </tbody>
     </table></div>
-    ${totalCancelledSessions() ? `<p class="rule-note" style="margin-top:10px;">${totalCancelledSessions()} abgesagte Termine: alle 7 Fixen tragen je ${chf(CANCELLED_SHARE)} – oben eingerechnet.</p>` : ""}
+    ${totalCancelledSessions() ? `<p class="rule-note" style="margin-top:10px;">${totalCancelledSessions()} abgesagte Termine: alle ${FIXED.length} Fixen tragen je ${chf(CANCELLED_SHARE)} – oben eingerechnet.</p>` : ""}
   </div>`;
 
   const guests = derived.extraLedger.length ? `
@@ -754,8 +873,7 @@ function renderStatistikTab(derived){
     </table></div>
   </div>` : "";
 
-  const net = {};
-  FIXED_IDS.forEach(p => { net[p] = share - derived.court[p] - derived.collected[p] + derived.beerPaid[p] - derived.beerShare[p]; });
+  const net = computeNet(derived);
   const settleRows = [...FIXED].sort((a,b) => net[a.id]-net[b.id]).map(f => {
     const p = f.id, n = net[p];
     const cls = n < -0.05 ? "owed-red" : (n > 0.05 ? "owed-green" : "");
@@ -780,7 +898,7 @@ function renderStatistikTab(derived){
     ? `<p class="rule-note" style="margin-top:10px;">${derived.unresolvedCount} Termine stehen noch nicht fest (weder gespielt noch abgesagt) – dafür ist noch Guthaben aus der Startzahlung reserviert.</p>` : "";
   return rank + guests + `
   <div class="card">
-    <h3>Schlussabrechnung der 7 Fixen</h3>
+    <h3>Schlussabrechnung der ${FIXED.length} Fixen</h3>
     <p class="rule-note" style="margin-bottom:14px;">Startzahlung je ${chf(share)} (1/7 von ${chf(totalGroupShare())}). Davon gehen ab: eigene Feldkosten und Geld, das man von Gästen/Mitgliedern bar bekommen hat. Bierrunden: bezahlt = Gutschrift, mitgetrunken = Anteil. Läuft laufend mit.</p>
     ${open}
     <div class="tbl-scroll"><table class="stats">
@@ -799,9 +917,9 @@ function renderInfoTab(){
   <div class="card">
     <h3>Saison auf einen Blick</h3>
     <div class="info-grid">
-      <div class="info-item"><div class="lbl">Ort</div><div class="val">Padel am See, Kreuzlingen</div></div>
+      <div class="info-item"><div class="lbl">Ort</div><div class="val">${esc(CFG.place)}</div></div>
       <div class="info-item"><div class="lbl">Zeit</div><div class="val">Donnerstag, 18:00–19:30</div></div>
-      <div class="info-item"><div class="lbl">Zeitraum</div><div class="val">01.10.2026 – 29.04.2027</div></div>
+      <div class="info-item"><div class="lbl">Zeitraum</div><div class="val">${fmtDate(CFG.start)} – ${fmtDate(CFG.end)}</div></div>
       <div class="info-item"><div class="lbl">Spieltage geplant</div><div class="val">${SESSIONS.length}</div></div>
       <div class="info-item"><div class="lbl">Ausfall (Halle)</div><div class="val">${totalVenueCancelledSessions()}</div></div>
       <div class="info-item"><div class="lbl">Abgesagt (Gruppe)</div><div class="val">${totalCancelledSessions()}</div></div>
@@ -819,24 +937,112 @@ function renderInfoTab(){
       <div class="info-item"><div class="lbl">Bleibt beim Verein (10%)</div><div class="val">${chf(totalClubShare())}</div></div>
       <div class="info-item"><div class="lbl">Gruppe zahlt (90%)</div><div class="val">${chf(totalGroupShare())}</div></div>
     </div>
-    <p style="font-size:12.5px; color:var(--muted); margin:14px 0 0;">Der Verein bucht das Feld für die ganze Saison fix. Die 7 Fixen zahlen zu Beginn je 1/7 der Gruppenkosten ein und rechnen am Schluss untereinander ab. Basis ist die Rechnung R-2600075 der Tennishalle vom 15.08.2026: ${totalBillableSessions()} von ${SESSIONS.length} Terminen werden verrechnet, ${totalVenueCancelledSessions()} sind Ausfall der Halle.</p>
+    <p style="font-size:12.5px; color:var(--muted); margin:14px 0 0;">Der Verein bucht das Feld für die ganze Saison fix. Die ${FIXED.length} Fixen zahlen zu Beginn je 1/${FIXED.length} der Gruppenkosten ein und rechnen am Schluss untereinander ab.${CFG.note ? " " + esc(CFG.note) + "." : ""} ${totalBillableSessions()} von ${SESSIONS.length} Terminen werden verrechnet, ${totalVenueCancelledSessions()} sind Ausfall der Halle.</p>
   </div>
   <div class="card">
     <h3>So funktioniert's</h3>
     <ul class="ball-list">
       <li>${ballSVG("neutral",17)}<span>Jeder Fixe setzt <b>nur sein eigenes Feld</b>: 1× = kann, 2× = kann nicht, 3× = leer. «Kann» geht für die <b>nächsten 2 Termine</b>, eine Absage jederzeit im Voraus.</span></li>
-      <li>${ballSVG("green",17)}<span>Ab <b>4 Anmeldungen</b> bestimmt die Seite die 4 Spielenden. <b>Die 7 Fixen haben Vorrang</b> (wer weniger gespielt hat zuerst, bei Gleichstand wer sich zuerst angemeldet hat).</span></li>
+      <li>${ballSVG("green",17)}<span>Ab <b>4 Anmeldungen</b> bestimmt die Seite die 4 Spielenden. <b>Die ${FIXED.length} Fixen haben Vorrang</b> (wer weniger gespielt hat zuerst, bei Gleichstand wer sich zuerst angemeldet hat).</span></li>
       <li>${ballSVG("red",17)}<span><b>Gäste und MST-Mitglieder</b> (Knöpfe «+ Gast» / «+ Mitglied») füllen nur freie Plätze auf. Sie zahlen ${chf(PER_PLAYER_COST)} <b>bar einem der Fixen</b> – das wird bei «Bezahlt an» eingetragen und diesem Fixen in der Abrechnung belastet, weil er das Geld schon hat.</span></li>
       <li>${ballSVG("neutral",17)}<span><b>Bierrunden:</b> Wer bezahlt, bekommt den Betrag gutgeschrieben; alle, die mitgetrunken haben, tragen den gleichen Anteil.</span></li>
-      <li>${ballSVG("declined",17)}<span>Einen Termin <b>absagen</b> kann nur der Admin. Dann tragen alle 7 Fixen die Kosten zu gleichen Teilen.</span></li>
+      <li>${ballSVG("declined",17)}<span>Einen Termin <b>absagen</b> kann nur der Admin. Dann tragen alle ${FIXED.length} Fixen die Kosten zu gleichen Teilen.</span></li>
       <li>${ballSVG("empty",17)}<span><b>Ausfall</b> (grau) sind Termine, die die Tennishalle selbst gestrichen hat: ${Object.keys(VENUE_CANCELLED).map(d=>dateD1(d)).join(", ")}. Kosten nichts.</span></li>
     </ul>
   </div>`;
 }
 
+/* ===================== ADMIN: SAISON VERWALTEN ===================== */
+let seasonMode = "edit"; // "edit" = angezeigte Saison bearbeiten, "new" = neue Saison anlegen
+function shiftYear(iso){ const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 364); return d.toISOString().slice(0,10); }
+function nextSeasonId(id){ const m = id.match(/^(\d{4})-(\d\d)$/); return m ? `${+m[1]+1}-${String((+m[2]+1)%100).padStart(2,"0")}` : ""; }
+function renderSeasonAdmin(){
+  const isNew = seasonMode === "new";
+  const c = isNew
+    ? { ...CFG, start:shiftYear(CFG.start), end:shiftYear(CFG.end), venueCancelled:{}, note:"" }
+    : CFG;
+  const id = isNew ? nextSeasonId(CURRENT_SEASON || SEASON) : SEASON;
+  const fixedIds = new Set((c.fixed || []).map(f => f.id));
+  const members = Object.entries(MST.directory).sort((a,b) => a[1].name.localeCompare(b[1].name, "de"));
+  const ausfall = Object.entries(c.venueCancelled || {}).sort().map(([d,r]) => `${d} ${r}`).join("\n");
+  return `
+  <div class="card admin-card">
+    <h3>Admin · Saison verwalten</h3>
+    <div class="seg" style="margin-bottom:14px;">
+      <label class="${!isNew?"on":""}"><input type="radio" name="smode" value="edit" ${!isNew?"checked":""}>${esc(seasonLabel(SEASON))} bearbeiten</label>
+      <label class="${isNew?"on":""}"><input type="radio" name="smode" value="new" ${isNew?"checked":""}>Neue Saison anlegen</label>
+    </div>
+    <form id="seasonForm" class="season-form">
+      <div class="beer-form">
+        <label>Saison (Jahr-Jahr)<input name="id" value="${esc(id)}" pattern="\\d{4}-\\d{2}" required ${isNew?"":"readonly"}></label>
+        <label>Erster Termin<input name="start" type="date" value="${c.start}" required></label>
+        <label>Letzter Termin<input name="end" type="date" value="${c.end}" required></label>
+        <label>Ort<input name="place" value="${esc(c.place)}" required></label>
+        <label>Zeit<input name="time" value="${esc(c.time)}" required></label>
+        <label>Preis pro Stunde (CHF)<input name="hourlyRate" inputmode="decimal" value="${c.hourlyRate}" required></label>
+        <label>Stunden pro Termin<input name="hours" inputmode="decimal" value="${c.hours}" required></label>
+        <label>Vereinsanteil (%)<input name="clubPct" inputmode="decimal" value="${Math.round(c.clubPct*1000)/10}" required></label>
+      </div>
+      <p class="my-lbl" style="margin:16px 0 6px;">Die Fixen (zahlen im Voraus, rechnen am Schluss ab)</p>
+      <div class="drinkers">${members.map(([mid,m]) => `<label class="drinker ${fixedIds.has(mid)?"on":""}"><input type="checkbox" name="fixed" value="${mid}" ${fixedIds.has(mid)?"checked":""}>${esc(m.short)}</label>`).join("")}</div>
+      <label style="margin-top:12px;">Ausfälle der Halle (eine Zeile pro Termin: JJJJ-MM-TT Grund)<textarea name="ausfall" rows="4">${esc(ausfall)}</textarea></label>
+      <label style="margin-top:12px;">Bemerkung zur Abrechnung<input name="note" value="${esc(c.note || "")}" placeholder="z. B. Basis: Rechnung Nr. … vom …"></label>
+      <p class="rule-note" style="margin:12px 0;">${isNew
+        ? "Die neue Saison wird sofort die aktuelle. Die bisherige bleibt als Archiv lesbar (oben auswählbar)."
+        : "Achtung: Preise oder Fixe mitten in der Saison zu ändern, ändert die ganze Abrechnung rückwirkend."}</p>
+      <button class="btn-primary" type="submit">${isNew ? "Neue Saison anlegen" : "Änderungen speichern"}</button>
+    </form>
+  </div>`;
+}
+function bindSeasonForm(f){
+  document.querySelectorAll('input[name="smode"]').forEach(r => r.onchange = () => { seasonMode = r.value; render(); });
+  f.querySelectorAll('input[name="fixed"]').forEach(cb => cb.onchange = () => cb.parentElement.classList.toggle("on", cb.checked));
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const num = v => parseFloat(String(v).replace(",", "."));
+    const venueCancelled = {};
+    for(const line of f.ausfall.value.split("\n")){
+      const m = line.trim().match(/^(\d{4}-\d{2}-\d{2})\s*(.*)$/);
+      if(m) venueCancelled[m[1]] = m[2] || "Ausfall der Halle";
+      else if(line.trim()){ alert("Diese Ausfall-Zeile verstehe ich nicht: " + line); return; }
+    }
+    const fixed = [...f.querySelectorAll('input[name="fixed"]:checked')].map(cb => ({ id:cb.value, short:MST.nameOf(cb.value) }));
+    // bisherige Reihenfolge der Fixen beibehalten
+    const order = (CFG.fixed || []).map(x => x.id);
+    fixed.sort((a,b) => ((order.indexOf(a.id)+1) || 99) - ((order.indexOf(b.id)+1) || 99));
+    const cfg = {
+      start:f.start.value, end:f.end.value, place:f.place.value.trim(), time:f.time.value.trim(),
+      hourlyRate:num(f.hourlyRate.value), hours:num(f.hours.value), clubPct:num(f.clubPct.value)/100,
+      fixed, venueCancelled, note:f.note.value.trim()
+    };
+    const id = f.id.value.trim();
+    if(!/^\d{4}-\d{2}$/.test(id)){ alert("Saison bitte als Jahr-Jahr, z. B. 2027-28."); return; }
+    if(cfg.end < cfg.start || !(cfg.hourlyRate > 0) || !(cfg.hours > 0) || !(cfg.clubPct >= 0)){ alert("Bitte Daten und Zahlen prüfen."); return; }
+    if(!fixed.length){ alert("Bitte mindestens einen Fixen auswählen."); return; }
+    const isNew = seasonMode === "new";
+    if(isNew && seasonsList.some(x => x.id === id)){ alert(`${seasonLabel(id)} gibt es schon.`); return; }
+    if(isNew && !confirm(`${seasonLabel(id)} anlegen und zur aktuellen Saison machen?`)) return;
+    try{
+      await db.collection("padel").doc(id).set(cfg);
+      if(isNew) await db.collection("config").doc("padel").set({ currentSeason:id }, { merge:true });
+      MST.log("padel", `${seasonLabel(id)} ${isNew ? "angelegt (jetzt aktuell)" : "bearbeitet"}`, { season:id });
+      if(isNew) CURRENT_SEASON = id;
+      const i = seasonsList.findIndex(x => x.id === id);
+      if(i >= 0) seasonsList[i].cfg = cfg; else seasonsList.push({ id, cfg });
+      seasonsList.sort((a,b) => b.id.localeCompare(a.id));
+      seasonMode = "edit";
+      openSeason(id);
+    }catch(err){ console.error(err); alert("Speichern fehlgeschlagen."); }
+  };
+}
+
 /* ===================== EVENTS ===================== */
 function attachHandlers(derived){
   document.querySelectorAll(".tabbtn").forEach(btn => btn.addEventListener("click", () => { currentTab = btn.dataset.tab; render(); }));
+  const sf = document.getElementById("seasonForm");
+  if(sf) bindSeasonForm(sf);
+  const ss = document.getElementById("seasonSelect");
+  if(ss) ss.onchange = () => openSeason(ss.value);
   const panel = document.getElementById("panelContent");
   panel.addEventListener("click", (e) => {
     const t = e.target.closest("[data-action]");
@@ -853,18 +1059,26 @@ function attachHandlers(derived){
         next = cur === undefined ? "declined" : null;
       }
       if(next === null && !days[d]) return;
-      write(daysCol.doc(d).set({ [p]: next === null ? FV.delete() : next }, { merge:true }));
+      write(daysCol.doc(d).set({ [p]: next === null ? FV.delete() : next }, { merge:true }),
+        `${dateD1(d)}: ${fixName(p)} → ${next === null ? "leer" : (next === "declined" ? "kann nicht" : "kann")}`);
+    } else if(action === "set-own"){
+      const v = t.dataset.val;
+      const next = v === "clear" ? null : (v === "declined" ? "declined" : Date.now());
+      if(next === null && !days[d]) return;
+      write(daysCol.doc(d).set({ [me.id]: next === null ? FV.delete() : next }, { merge:true }),
+        `${dateD1(d)}: ${fixName(me.id)} → ${next === null ? "leer" : (next === "declined" ? "kann nicht" : "kann")}`);
     } else if(action === "toggle-cancel"){
       if(!me.admin) return;
       const on = !(days[d] && days[d].cancelled);
-      if(on && !confirm(`Termin ${dateD1(d)} absagen? Dann tragen alle 7 Fixen die Kosten.`)) return;
-      write(daysCol.doc(d).set({ cancelled: on }, { merge:true }));
+      if(on && !confirm(`Termin ${dateD1(d)} absagen? Dann tragen alle ${FIXED.length} Fixen die Kosten.`)) return;
+      write(daysCol.doc(d).set({ cancelled: on }, { merge:true }), `${dateD1(d)}: Termin ${on ? "abgesagt" : "reaktiviert"}`);
     } else if(action === "add-extra"){
       openExtraDialog(d, { typ: t.dataset.typ });
     } else if(action === "edit-extra"){
       openExtraDialog(d, { key: t.dataset.key });
     } else if(action === "del-beer"){
-      if(confirm("Bierrunde löschen?")) write(beerCol.doc(t.dataset.id).delete());
+      const b = beers.find(x => x.id === t.dataset.id);
+      if(confirm("Bierrunde löschen?")) write(beerCol.doc(t.dataset.id).delete(), `Bierrunde ${dateD1(b.date)} von ${fixName(b.payer)} (${chf(Number(b.amount)||0)}) gelöscht`);
     }
   });
 
@@ -887,7 +1101,7 @@ function attachHandlers(derived){
       if(!beerDraft.drinkers.size){ alert("Bitte ankreuzen, wer mitgetrunken hat."); return; }
       const entry = { date:beerDraft.date, payer:beerDraft.payer, amount, drinkers:[...beerDraft.drinkers], note:beerDraft.note.trim(), by:me.id, at:Date.now() };
       beerDraft = null;
-      write(beerCol.add(entry));
+      write(beerCol.add(entry), `Bierrunde ${dateD1(entry.date)}: ${fixName(entry.payer)} zahlt ${chf(amount)} für ${entry.drinkers.length} Personen`);
     };
   }
 }

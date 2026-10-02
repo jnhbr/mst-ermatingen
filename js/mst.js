@@ -45,6 +45,12 @@ const MST = {
   },
   nameOf(id){ return (this.directory[id] && this.directory[id].short) || id; },
 
+  /* Eintrag ins Änderungsprotokoll (lesen kann nur der Admin). */
+  log(area, text, extra){
+    return db.collection("log").add({ at:Date.now(), by:this.user.id, byName:this.user.name, area, text, ...(extra || {}) })
+      .catch(e => console.warn("Protokoll fehlgeschlagen", e));
+  },
+
   /* Startet die Seite: zeigt bei Bedarf das Login und ruft danach onReady(user) auf. */
   start(onReady){
     this._onReady = onReady;

@@ -55,7 +55,24 @@ service cloud.firestore {
            == request.resource.data.memberId;
     }
 
+    // ---------- Konfiguration & Änderungsprotokoll ----------
+    match /config/{doc} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+    }
+    // Jede Änderung schreibt einen Eintrag; lesen kann nur der Admin.
+    match /log/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isAdmin()
+        || (hasSession() && request.resource.data.by == me());
+    }
+
     // ---------- Padel ----------
+    // padel/<saison> = Konfiguration der Saison (Termine, Preise, Fixe, Ausfälle)
+    match /padel/{season} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+    }
     // Ein Dokument pro Donnerstag: Feld <memberId> = Verfügbarkeit,
     // "extras" = Gäste/Mitglieder, "cancelled" = Absage (nur Admin).
     match /padel/{season}/days/{date} {

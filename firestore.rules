@@ -1,0 +1,77 @@
+rules_version = '2';
+// Firestore-Regeln für das Firebase-Projekt "minispieltag".
+// Gelten für BEIDE Seiten: die Spieltag-Live-Seite (minispieltag.web.app)
+// und die MST-Vereinsseite (jnhbr.github.io/mst-ermatingen).
+// Quelle der Wahrheit ist diese Datei – deployen mit:
+//   firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Admin = Login mit E-Mail/Passwort (Jans Konto aus Firebase Authentication).
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+    // Mitglied = anonymer Login + gültige Sitzung (Vereinsnummer + Vorname geprüft).
+    function sessionPath() {
+      return /databases/$(database)/documents/sessions/$(request.auth.uid);
+    }
+    function hasSession() {
+      return request.auth != null && exists(sessionPath());
+    }
+    function me() {
+      return get(sessionPath()).data.memberId;
+    }
+    function isMember() {
+      return isAdmin() || hasSession();
+    }
+
+    // ---------- Spieltag (minispieltag.web.app) ----------
+    match /draws/{doc=**}     { allow read: if true; allow write: if isAdmin(); }
+    match /persons/{doc=**}   { allow read: if true; allow write: if isAdmin(); }
+    match /results/{doc=**}   { allow read: if true; allow write: if isAdmin(); }
+    match /schedules/{doc=**} { allow read: if true; allow write: if isAdmin(); }
+
+    // ---------- MST-Vereinsseite: Login ----------
+    // Dokument-ID = SHA-256 von "mst-ermatingen|<Nummer>|<vorname>".
+    // Lesbar nur, wer die ID kennt (kein Auflisten).
+    match /members/{key} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if isAdmin();
+    }
+    // Namen für Auswahllisten – nur für Eingeloggte.
+    match /memberDirectory/{id} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+    }
+    match /sessions/{uid} {
+      allow get, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['key', 'memberId', 'at'])
+        && request.resource.data.key is string
+        && request.resource.data.key.matches('^[0-9a-f]{64}$')
+        && get(/databases/$(database)/documents/members/$(request.resource.data.key)).data.id
+           == request.resource.data.memberId;
+    }
+
+    // ---------- Padel ----------
+    // Ein Dokument pro Donnerstag: Feld <memberId> = Verfügbarkeit,
+    // "extras" = Gäste/Mitglieder, "cancelled" = Absage (nur Admin).
+    match /padel/{season}/days/{date} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+      allow create: if hasSession()
+        && request.resource.data.keys().hasOnly([me(), 'extras']);
+      allow update: if hasSession()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([me(), 'extras']);
+    }
+    match /padel/{season}/beer/{id} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+      allow create: if hasSession() && request.resource.data.by == me();
+      allow update: if hasSession() && resource.data.by == me() && request.resource.data.by == me();
+      allow delete: if hasSession() && resource.data.by == me();
+    }
+  }
+}

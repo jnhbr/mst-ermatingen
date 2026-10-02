@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Padel · MST Ermatingen</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="icon" href="../assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Padel MST">
+<meta name="theme-color" content="#141311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/mst.css">
+<style>
+  /* ---------- HERO ---------- */
+  .hero{position:relative; padding:22px 4px 22px; display:flex; flex-wrap:wrap; gap:20px; align-items:flex-end; justify-content:space-between; overflow:hidden;}
+  .hero-dog{position:absolute; right:-30px; top:-10px; width:170px; opacity:0.05; filter:grayscale(1) brightness(3); pointer-events:none;}
+  .hero-left{display:flex; gap:16px; align-items:center; z-index:1;}
+  .hero-logo{width:60px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
+  .hero-titles{display:flex; flex-direction:column; gap:3px;}
+  .eyebrow{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--yellow);}
+  .hero-title{font-family:var(--font-display); font-weight:700; text-transform:uppercase; letter-spacing:.02em; font-size:clamp(24px,5.5vw,38px); line-height:1.02; margin:0;}
+  .hero-sub{color:var(--muted); font-size:13.5px; margin:0;}
+  .hero-stats{display:flex; gap:8px; flex-wrap:wrap; z-index:1;}
+  .stat-chip{background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm); padding:8px 14px; min-width:100px;}
+  .stat-chip .num{font-family:var(--font-mono); font-weight:700; font-size:17px; color:var(--yellow); display:block; line-height:1.2;}
+  .stat-chip .lbl{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
+  .court-line{position:relative; height:1px; background:linear-gradient(90deg, transparent, var(--line-strong) 12%, var(--line-strong) 88%, transparent); margin:4px 4px 18px;}
+  .court-line::after{content:""; position:absolute; left:50%; top:50%; width:8px; height:8px; background:var(--yellow); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 0 4px var(--bg), 0 0 0 5px var(--line-strong);}
+
+  /* ---------- TABS ---------- */
+  .tabbar{display:flex; gap:2px; flex-wrap:wrap; margin:0 4px 18px; border-bottom:1px solid var(--line);}
+  .tabbtn{background:none; border:none; color:var(--muted); font-family:var(--font-display); text-transform:uppercase; letter-spacing:.04em; font-size:13.5px; font-weight:600; padding:10px 14px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;}
+  .tabbtn:hover{color:var(--white);}
+  .tabbtn.active{color:var(--yellow); border-bottom-color:var(--yellow);}
+  .toolbar{display:flex; align-items:center; gap:12px; margin:0 4px 16px; justify-content:flex-end;}
+  .save-indicator{font-size:11.5px; color:var(--muted-2); font-family:var(--font-mono); display:flex; align-items:center; gap:6px;}
+  .save-dot{width:7px;height:7px;border-radius:50%; background:var(--muted-2);}
+  .save-indicator.saving .save-dot{background:var(--yellow);}
+  .save-indicator.saved .save-dot{background:var(--green);}
+  .save-indicator.error .save-dot{background:var(--red);}
+  section.panel{margin:0 4px;}
+
+  .legend{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; font-size:12px; color:var(--muted);}
+  .legend-item{display:flex; align-items:center; gap:6px;}
+
+  /* ---------- VERFÜGBARKEIT: TABELLE ---------- */
+  .only-desktop{display:block;}
+  .only-mobile{display:none;}
+  .table-scroll{overflow-x:auto; border-radius:var(--radius); border:1px solid var(--line);}
+  table.avail{border-collapse:collapse; width:100%; min-width:960px; background:var(--bg-elev);}
+  table.avail th, table.avail td{padding:8px 8px; text-align:center; border-bottom:1px solid var(--line); font-size:12.5px;}
+  table.avail th{font-family:var(--font-display); text-transform:uppercase; font-size:11px; letter-spacing:.03em; color:var(--muted); font-weight:500; background:var(--bg-elev-2); position:sticky; top:0;}
+  table.avail th.me{color:var(--yellow);}
+  table.avail td:first-child, table.avail th:first-child{text-align:left; position:sticky; left:0; background:var(--bg-elev-2); min-width:120px; z-index:2;}
+  table.avail th:first-child{z-index:3;}
+  table.avail td.extras-cell{text-align:left; min-width:220px;}
+  tr.month-row td{background:var(--bg-elev-3); text-align:left; font-family:var(--font-mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--yellow); padding:5px 8px; position:static;}
+  tr.cancelled-row td{opacity:.4;}
+  tr.ausfall-row td{opacity:.45;}
+  .ausfall-badge{font-family:var(--font-mono); font-size:9.5px; letter-spacing:.06em; background:var(--red-soft); color:var(--red); border-radius:4px; padding:2px 5px; margin-left:6px;}
+  .ausfall-text{color:var(--muted-2);}
+  .s-card.ausfall-row{opacity:.55;}
+  tr.info-row td{background:var(--bg-elev); text-align:left; font-size:11.5px; color:var(--muted); padding:2px 8px 9px; border-bottom:1px solid var(--line);}
+  span.hl{color:var(--white);}
+  .ball-btn{background:none; border:none; cursor:pointer; padding:2px; display:inline-flex; border-radius:50%;}
+  .ball-btn:hover:not(:disabled){transform:scale(1.12);}
+  .ball-btn:disabled{cursor:default;}
+  .ball-btn.locked{opacity:.85;}
+  .cancel-x{background:none; border:1px solid var(--line-strong); color:var(--muted-2); border-radius:50%; width:22px; height:22px; font-size:11px; cursor:pointer; line-height:1;}
+  .cancel-x:hover{border-color:var(--red); color:var(--red);}
+  .cancel-x.is-cancelled{border-color:var(--green); color:var(--green);}
+
+  /* ---------- VERFÜGBARKEIT: KARTEN (Handy) ---------- */
+  .s-card{background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; margin-bottom:10px;}
+  .s-card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .s-date{font-family:var(--font-display); font-size:15px; text-transform:uppercase;}
+  .s-month{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--yellow); margin:14px 0 6px 2px;}
+  .chips{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:8px;}
+  .chip{border-radius:20px; padding:7px 13px; font-size:13px; font-weight:500; border:1px solid var(--line-strong); background:none; color:var(--muted); cursor:pointer;}
+  .chip:disabled{cursor:default;}
+  .chip.mine{border-color:var(--yellow);}
+  .chip.st-neutral{background:var(--yellow-soft); color:var(--yellow); border-color:transparent;}
+  .chip.st-green{background:var(--green-soft); color:var(--green); border-color:transparent;}
+  .chip.st-red{background:var(--red-soft); color:var(--red); border-color:transparent;}
+  .chip.st-declined{background:none; color:var(--muted-2); border-color:var(--line-strong); text-decoration:line-through; opacity:.8;}
+  .chip.mine.st-neutral, .chip.mine.st-green, .chip.mine.st-red{box-shadow:inset 0 0 0 1px currentColor;}
+  .chip.extra{border-style:dashed;}
+  .chip .paid{font-size:10.5px; opacity:.8; margin-left:4px;}
+  .chip .paid.open{color:var(--red); opacity:1;}
+  .add-btn{border-radius:20px; padding:6px 11px; font-size:12px; border:1px dashed var(--line-strong); background:none; color:var(--muted); cursor:pointer;}
+  .add-btn:hover{border-color:var(--yellow); color:var(--yellow);}
+  .s-info{font-size:12px; color:var(--muted);}
+
+  .status-pill{display:inline-block; font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:20px;}
+  .status-pill.upcoming{background:var(--yellow-soft); color:var(--yellow);}
+  .status-pill.today{background:var(--green-soft); color:var(--green);}
+  .status-pill.past{background:var(--bg-elev-2); color:var(--muted);}
+  .status-pill.cancelled{background:var(--red-soft); color:var(--red);}
+  .status-pill.ausfall{background:var(--bg-elev-3); color:var(--muted-2);}
+
+  @media (max-width:720px){
+    .only-desktop{display:none;}
+    .only-mobile{display:block;}
+    .hero-dog{display:none;}
+  }
+
+  details.past-details{margin-top:16px; border-top:1px solid var(--line); padding-top:12px;}
+  details.past-details summary{cursor:pointer; list-style:none; font-family:var(--font-display); text-transform:uppercase; letter-spacing:.04em; font-size:12.5px; color:var(--muted); padding:4px 0; user-select:none;}
+  details.past-details summary::-webkit-details-marker{display:none;}
+  details.past-details summary::before{content:"▸  "; color:var(--yellow);}
+  details.past-details[open] summary::before{content:"▾  ";}
+  details.past-details summary:hover{color:var(--white);}
+  details.past-details[open] summary{margin-bottom:10px;}
+  details.past-details .table-scroll, details.past-details .s-card{opacity:.75;}
+
+  /* ---------- STATISTIK ---------- */
+  .tbl-scroll{overflow-x:auto;}
+  table.stats{border-collapse:collapse; width:100%;}
+  table.stats th, table.stats td{padding:10px 10px; border-bottom:1px solid var(--line); font-size:13.5px; text-align:left; white-space:nowrap;}
+  table.stats th{font-family:var(--font-display); text-transform:uppercase; font-size:11px; letter-spacing:.04em; color:var(--muted); font-weight:500;}
+  table.stats td.num, table.stats th.num{text-align:right; font-family:var(--font-mono);}
+  table.stats tr.total-row td{border-top:2px solid var(--line-strong); border-bottom:none; font-weight:600; color:var(--white); padding-top:13px;}
+  table.stats td.wrap{white-space:normal;}
+  .rank-badge{display:inline-flex; align-items:center; justify-content:center; width:19px; height:19px; border-radius:50%; background:var(--bg-elev-2); color:var(--muted); font-family:var(--font-mono); font-size:10.5px; margin-right:8px;}
+  td.owed-red{color:var(--red);}
+  td.owed-green{color:var(--green);}
+  ul.settle-list{list-style:none; margin:0; padding:0;}
+  ul.settle-list li{padding:10px 14px; margin-bottom:8px; background:var(--bg-elev-2); border-radius:var(--radius-sm); font-size:13.5px; border-left:3px solid var(--yellow);}
+  ul.settle-list li b{color:var(--white);}
+  .warn{padding:10px 14px; background:var(--red-soft); border-radius:var(--radius-sm); font-size:13px; color:var(--white); margin:0 0 12px; border-left:3px solid var(--red);}
+
+  /* ---------- BIERRUNDEN ---------- */
+  .beer-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; align-items:end;}
+  .drinkers{display:flex; flex-wrap:wrap; gap:7px; margin:14px 0 4px;}
+  .drinker{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-strong); border-radius:20px; padding:6px 12px; font-size:13px; cursor:pointer; color:var(--muted); text-transform:none; letter-spacing:0; flex-direction:row;}
+  .drinker input{accent-color:var(--yellow); width:15px; height:15px; padding:0; margin:0;}
+  .drinker.on{border-color:var(--yellow); color:var(--white); background:var(--yellow-soft);}
+  .beer-list{list-style:none; margin:0; padding:0;}
+  .beer-list li{display:flex; gap:12px; align-items:flex-start; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+  .beer-list .meta{color:var(--muted); font-size:12px; margin-top:3px;}
+  .beer-list .amt{font-family:var(--font-mono); color:var(--yellow); white-space:nowrap;}
+  .del-btn{background:none; border:1px solid var(--line-strong); color:var(--muted-2); border-radius:6px; padding:3px 8px; font-size:11.5px; cursor:pointer; margin-left:8px;}
+  .del-btn:hover{border-color:var(--red); color:var(--red);}
+
+  /* ---------- INFO ---------- */
+  .info-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px;}
+  .info-item .lbl{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:3px;}
+  .info-item .val{font-family:var(--font-mono); font-size:15px; color:var(--white);}
+  ul.ball-list{list-style:none; margin:0; padding:0;}
+  ul.ball-list li{display:flex; gap:10px; align-items:flex-start; padding:6px 0; font-size:13px; color:var(--muted);}
+  ul.ball-list li svg{flex-shrink:0; margin-top:2px;}
+  ul.ball-list li b{color:var(--white); font-weight:600;}
+
+  /* ---------- DIALOG ---------- */
+  dialog{background:var(--bg-elev); color:var(--white); border:1px solid var(--line-strong); border-radius:var(--radius); padding:20px; width:min(420px, calc(100vw - 32px));}
+  dialog::backdrop{background:rgba(0,0,0,.6);}
+  dialog h3{font-family:var(--font-display); text-transform:uppercase; margin:0 0 4px; font-size:17px;}
+  dialog .dlg-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+  dialog form{display:flex; flex-direction:column; gap:12px;}
+  .seg{display:flex; gap:6px;}
+  .seg label{flex:1; flex-direction:row; justify-content:center; align-items:center; border:1px solid var(--line-strong); border-radius:var(--radius-sm); padding:9px; cursor:pointer; font-size:13px; color:var(--muted); text-transform:none; letter-spacing:0;}
+  .seg input{display:none;}
+  .seg label.on{border-color:var(--yellow); color:var(--yellow); background:var(--yellow-soft);}
+  .dlg-actions{display:flex; gap:8px; justify-content:space-between; align-items:center; margin-top:4px; flex-wrap:wrap;}
+  .dlg-actions .right{display:flex; gap:8px; margin-left:auto;}
+  .btn-danger{background:none; border:1px solid var(--red); color:var(--red); border-radius:var(--radius-sm); padding:8px 12px; font-size:13px; cursor:pointer;}
+</style>
+</head>
+<body>
+<div id="gate"><div class="loading">lade …</div></div>
+<div id="app"><div class="loading">lade Daten …</div></div>
+<dialog id="extraDlg"></dialog>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../js/mst.js" data-base="../"></script>
+<script>
+/* ===================== SAISON ===================== */
+const SEASON = "2026-27";
+// Die 7 Fixen (Mitgliedernummer -> Kurzname). Sie haben die Saison im Voraus
+// bezahlt und rechnen am Schluss untereinander ab.
+const FIXED = [
+  { id:"m10", short:"Jan" },
+  { id:"m7",  short:"Pascal" },
+  { id:"m13", short:"Lehner" },
+  { id:"m30", short:"Nicola" },
+  { id:"m25", short:"Noel" },
+  { id:"m23", short:"Sven B." },
+  { id:"m19", short:"Sven G." }
+];
+const FIXED_IDS = FIXED.map(f => f.id);
+const fixName = id => (FIXED.find(f => f.id === id) || {}).short || MST.nameOf(id);
+
+function buildSessions(){
+  // Rein in UTC gerechnet, sonst rutscht in der Schweiz (UTC+1/+2) jeder
+  // Donnerstag auf den Mittwoch davor.
+  const dates=[];
+  let d = new Date(Date.UTC(2026, 9, 1));   // 1.10.2026
+  const end = new Date(Date.UTC(2027, 3, 29)); // 29.4.2027
+  while(d <= end){ dates.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+7); }
+  return dates;
+}
+const SESSIONS = buildSessions();
+const HOURLY_RATE = 55;
+const SESSION_HOURS = 1.5;
+const SESSION_COST = HOURLY_RATE * SESSION_HOURS;           // 82.50
+const CLUB_PCT = 0.10;
+const GROUP_SESSION_COST = SESSION_COST * (1 - CLUB_PCT);  // 74.25
+const PER_PLAYER_COST = GROUP_SESSION_COST / 4;            // 18.5625
+const CANCELLED_SHARE = GROUP_SESSION_COST / FIXED.length; // Absage: alle 7 Fixen tragen den Termin
+// Von der Tennishalle gestrichen (Rechnung R-2600075 vom 15.08.2026): kostet nichts.
+const VENUE_CANCELLED = {
+  "2026-10-22": "Firmen-Event der Tennishalle",
+  "2026-10-29": "Firmen-Event der Tennishalle",
+  "2026-12-24": "Ausfall gemäss Rechnung Tennishalle",
+  "2026-12-31": "Ausfall gemäss Rechnung Tennishalle"
+};
+const SESSIONS_OPEN_AHEAD = 2;
+
+function todayISO(){
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+}
+
+/* ===================== DATEN (Firestore) =====================
+   padel/<SEASON>/days/<datum>:
+     <memberId>: Zeitstempel (kann) | "declined" (kann nicht)   – nur die 7 Fixen
+     extras: { x_…: { typ:"gast"|"mitglied", name, memberId?, ts, paidTo, by } }
+     cancelled: true                                             – nur Admin
+   padel/<SEASON>/beer/<id>:
+     { date, payer, amount, drinkers:[memberId | x_…], note, by, at } */
+const seasonRef = db.collection("padel").doc(SEASON);
+const daysCol = seasonRef.collection("days");
+const beerCol = seasonRef.collection("beer");
+const FV = firebase.firestore.FieldValue;
+
+let days = {};
+let beers = [];
+let loadedDays = false, loadedBeer = false;
+let currentTab = "verfuegbarkeit";
+let saveStatus = "idle";
+let me = null; // MST.user
+
+MST.start((user) => {
+  me = user;
+  daysCol.onSnapshot(snap => {
+    days = {}; snap.forEach(d => { days[d.id] = d.data(); });
+    loadedDays = true; render();
+  }, err => { console.error(err); saveStatus="error"; updateSaveIndicatorOnly(); });
+  beerCol.onSnapshot(snap => {
+    beers = []; snap.forEach(d => beers.push({ id:d.id, ...d.data() }));
+    beers.sort((a,b) => (b.date.localeCompare(a.date)) || (b.at - a.at));
+    loadedBeer = true; render();
+  }, err => { console.error(err); saveStatus="error"; updateSaveIndicatorOnly(); });
+});
+
+async function write(promise){
+  saveStatus = "saving"; updateSaveIndicatorOnly();
+  try{ await promise; saveStatus = "saved"; }
+  catch(e){ console.error(e); saveStatus = "error"; alert("Konnte nicht gespeichert werden (keine Berechtigung oder keine Verbindung)."); }
+  updateSaveIndicatorOnly();
+}
+function updateSaveIndicatorOnly(){
+  const el = document.getElementById("saveIndicator");
+  if(!el) return;
+  el.className = "save-indicator " + saveStatus;
+  el.querySelector(".save-txt").textContent = {idle:"live", saving:"speichert …", saved:"gespeichert", error:"Fehler"}[saveStatus];
+}
+
+/* ===================== AUSWERTUNG =====================
+   Alles wird bei jedem Rendern frisch aus days + beers berechnet.
+   Vorrang: Die 7 Fixen zuerst (wenigste Spiele, dann wer sich zuerst
+   angemeldet hat), danach Gäste/Mitglieder in der Reihenfolge der Anmeldung.
+   Geld (alles aus Sicht der 7 Fixen):
+   - Feld: gespielter Termin = CHF 74.25 / 4 pro Spieler; Absage = alle 7 teilen.
+   - Gast/Mitglied spielt: zahlt seinen Anteil bar einem Fixen ("bezahlt an").
+     Dieser Fixe hat das Geld in der Tasche -> wird ihm belastet.
+   - Bierrunde: Wer bezahlt, bekommt den Betrag gutgeschrieben; alle, die
+     mitgetrunken haben, tragen einen gleichen Anteil. Der Anteil eines Gasts
+     geht an den Fixen, dem der Gast bezahlt hat. */
+function extrasOf(d){
+  const ex = (days[d] && days[d].extras) || {};
+  return Object.entries(ex).map(([key, x]) => ({ key, ...x })).sort((a,b) => (a.ts||0) - (b.ts||0));
+}
+function extraLabel(x){ return x.typ === "gast" ? `${x.name} (Gast)` : x.name; }
+function participantName(d, id){
+  if(id.startsWith("x_")){
+    const x = extrasOf(d).find(e => e.key === id);
+    return x ? extraLabel(x) : "(entfernt)";
+  }
+  return fixName(id);
+}
+
+function deriveAll(){
+  const games = {}, court = {}, collected = {}, beerPaid = {}, beerShare = {};
+  FIXED_IDS.forEach(p => { games[p]=0; court[p]=0; collected[p]=0; beerPaid[p]=0; beerShare[p]=0; });
+  const perSession = {};
+  const extraLedger = [];  // Gäste/Mitglieder: was sie schulden und wem bezahlt
+  const openItems = [];    // noch nicht zugeordnet
+  let unresolvedCount = 0;
+
+  for(const d of SESSIONS){
+    const ausfallReason = VENUE_CANCELLED[d] || null;
+    if(ausfallReason){
+      perSession[d] = { ausfall:true, ausfallReason, cancelled:false, fixAvail:[], extras:[], confirmed:[], quorum:false, day:{} };
+      continue;
+    }
+    const day = days[d] || {};
+    const cancelled = !!day.cancelled;
+    const fixAvail = FIXED_IDS.filter(p => typeof day[p] === "number");
+    const extras = extrasOf(d);
+    const quorum = !cancelled && (fixAvail.length + extras.length) >= 4;
+    let confirmed = [];
+    if(quorum){
+      const fixSorted = [...fixAvail].sort((a,b) => (games[a]-games[b]) || ((day[a]||0)-(day[b]||0)));
+      confirmed = [...fixSorted, ...extras.map(x => x.key)].slice(0,4);
+    }
+    perSession[d] = { ausfall:false, cancelled, fixAvail, extras, confirmed, quorum, day };
+    if(!cancelled && !quorum) unresolvedCount++;
+    if(cancelled){
+      FIXED_IDS.forEach(p => { court[p] += CANCELLED_SHARE; });
+      continue;
+    }
+    for(const p of confirmed){
+      if(!p.startsWith("x_")){ games[p]++; court[p] += PER_PLAYER_COST; continue; }
+      const x = extras.find(e => e.key === p);
+      const row = { date:d, key:p, label:extraLabel(x), paidTo:x.paidTo||null, court:PER_PLAYER_COST, beer:0 };
+      extraLedger.push(row);
+      if(row.paidTo) collected[row.paidTo] += PER_PLAYER_COST;
+      else openItems.push(`${dateD1(d)}: ${row.label} hat gespielt – noch offen, wem bezahlt`);
+    }
+  }
+
+  for(const b of beers){
+    const amount = Number(b.amount) || 0;
+    if(FIXED_IDS.includes(b.payer)) beerPaid[b.payer] += amount;
+    const drinkers = (b.drinkers || []).filter(Boolean);
+    if(!drinkers.length) continue;
+    const share = amount / drinkers.length;
+    for(const id of drinkers){
+      if(FIXED_IDS.includes(id)){ beerShare[id] += share; continue; }
+      const x = extrasOf(b.date).find(e => e.key === id);
+      if(x){
+        let row = extraLedger.find(r => r.key === id);
+        if(!row){ row = { date:b.date, key:id, label:extraLabel(x), paidTo:x.paidTo||null, court:0, beer:0 }; extraLedger.push(row); }
+        row.beer += share;
+        if(x.paidTo){ collected[x.paidTo] += share; continue; }
+        openItems.push(`${dateD1(b.date)}: Bieranteil von ${extraLabel(x)} – noch offen, wem bezahlt`);
+      } else {
+        openItems.push(`${dateD1(b.date)}: Bierrunde enthält einen entfernten Gast (${chf(share)})`);
+      }
+    }
+  }
+  extraLedger.sort((a,b) => a.date.localeCompare(b.date));
+  return { perSession, games, court, collected, beerPaid, beerShare, extraLedger, openItems, unresolvedCount };
+}
+
+/* ===================== ANMELDEFENSTER =====================
+   "Kann" nur für die nächsten 2 Termine, Absage jederzeit. Admin darf alles. */
+function withinRegistrationWindow(d){
+  const today = todayISO();
+  const idx = SESSIONS.findIndex(s => s >= today);
+  if(idx === -1) return true;
+  const dIdx = SESSIONS.indexOf(d);
+  if(dIdx === -1 || dIdx < idx) return true;
+  return dIdx <= idx + (SESSIONS_OPEN_AHEAD - 1);
+}
+const canEditFix = id => me.admin || me.id === id;
+
+/* ===================== FORMAT ===================== */
+function chf(n){ return "CHF " + n.toLocaleString("de-CH",{minimumFractionDigits:2, maximumFractionDigits:2}); }
+function dateD1(d){ const dt=new Date(d+"T00:00:00"); return dt.toLocaleDateString("de-CH",{weekday:"short", day:"2-digit", month:"2-digit"}); }
+function monthLabel(d){ const dt=new Date(d+"T00:00:00"); const s=dt.toLocaleDateString("de-CH",{month:"long", year:"numeric"}); return s.charAt(0).toUpperCase()+s.slice(1); }
+function sessionStatus(d, sess){
+  if(sess.ausfall) return "ausfall";
+  if(sess.cancelled) return "cancelled";
+  if(d === todayISO()) return "today";
+  return d < todayISO() ? "past" : "upcoming";
+}
+
+function ballSVG(kind, size){
+  size = size || 20;
+  const colorMap = {empty:"none", neutral:"var(--yellow)", green:"var(--green)", red:"var(--red)", declined:"none"};
+  const fill = colorMap[kind] || "none";
+  const showSeam = kind==="neutral" || kind==="green" || kind==="red";
+  return '<svg viewBox="0 0 32 32" width="'+size+'" height="'+size+'" aria-hidden="true">' +
+    '<circle cx="16" cy="16" r="14" fill="'+fill+'" stroke="rgba(245,243,236,.35)" stroke-width="1.6"/>' +
+    (showSeam ? '<path d="M4 11 Q16 3 28 11" fill="none" stroke="rgba(20,19,17,.55)" stroke-width="1.7"/><path d="M4 21 Q16 29 28 21" fill="none" stroke="rgba(20,19,17,.55)" stroke-width="1.7"/>' : '') +
+    (kind==="declined" ? '<line x1="8" y1="8" x2="24" y2="24" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round"/>' : '') +
+    '</svg>';
+}
+function stateOf(sess, id){
+  if(sess.cancelled || sess.ausfall) return "empty";
+  if(id.startsWith("x_")){
+    if(!sess.quorum) return "neutral";
+    return sess.confirmed.includes(id) ? "green" : "red";
+  }
+  const val = sess.day[id];
+  if(val === "declined") return "declined";
+  if(typeof val !== "number") return "empty";
+  if(!sess.quorum) return "neutral";
+  return sess.confirmed.includes(id) ? "green" : "red";
+}
+const kindCls = k => k==="green"?"st-green":k==="red"?"st-red":k==="neutral"?"st-neutral":k==="declined"?"st-declined":"";
+
+/* ===================== GERÜST ===================== */
+function totalVenueCancelledSessions(){ return SESSIONS.filter(d => VENUE_CANCELLED[d]).length; }
+function totalCancelledSessions(){ return SESSIONS.filter(d => !VENUE_CANCELLED[d] && days[d] && days[d].cancelled).length; }
+function totalBillableSessions(){ return SESSIONS.length - totalVenueCancelledSessions(); }
+function totalSeasonCost(){ return totalBillableSessions() * SESSION_COST; }
+function totalClubShare(){ return totalSeasonCost() * CLUB_PCT; }
+function totalGroupShare(){ return totalSeasonCost() * (1-CLUB_PCT); }
+function upfrontShare(){ return totalGroupShare() / FIXED.length; }
+
+function render(){
+  const app = document.getElementById("app");
+  if(!loadedDays || !loadedBeer){ app.innerHTML = '<div class="loading">lade Daten …</div>'; return; }
+  const derived = deriveAll();
+  const y = window.scrollY;
+  app.innerHTML = renderTopbar() + renderHero() + renderToolbar() + renderTabbar()
+    + '<section class="panel" id="panelContent"></section>'
+    + '<p class="footer-note">Alles wird live gespeichert – Änderungen der anderen erscheinen sofort.</p>';
+  document.getElementById("panelContent").innerHTML = renderTabContent(derived);
+  MST.renderUserBar();
+  updateSaveIndicatorOnly();
+  attachHandlers(derived);
+  window.scrollTo(0, y);
+}
+function renderTopbar(){
+  return `<div class="topbar"><span class="crumbs"><a href="../">MST Ermatingen</a> / Padel</span><div id="userbar"></div></div>`;
+}
+function renderHero(){
+  return `
+  <div class="hero">
+    <img class="hero-dog" src="../assets/hund.png" alt="">
+    <div class="hero-left">
+      <img class="hero-logo" src="../assets/logo.png" alt="MST Ermatingen Wappen">
+      <div class="hero-titles">
+        <span class="eyebrow">Padelgruppe · Saison 26/27</span>
+        <h1 class="hero-title">MST Padel</h1>
+        <p class="hero-sub">Padel am See, Kreuzlingen · jeden Donnerstag 18:00–19:30</p>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-chip"><span class="num">${totalBillableSessions()}</span><span class="lbl">Spieltage</span></div>
+      <div class="stat-chip"><span class="num">${chf(totalGroupShare())}</span><span class="lbl">Anteil Gruppe</span></div>
+      <div class="stat-chip"><span class="num">${chf(totalClubShare())}</span><span class="lbl">Anteil Verein</span></div>
+    </div>
+  </div>
+  <div class="court-line"></div>`;
+}
+function renderToolbar(){
+  return `<div class="toolbar"><span class="save-indicator" id="saveIndicator"><span class="save-dot"></span><span class="save-txt"></span></span></div>`;
+}
+function renderTabbar(){
+  const tabs = [["verfuegbarkeit","Verfügbarkeit"], ["bier","🍺 Bierrunden"], ["statistik","Statistik & Abrechnung"], ["info","Info"]];
+  return '<div class="tabbar">' + tabs.map(([id,label]) =>
+    `<button class="tabbtn ${currentTab===id?"active":""}" data-tab="${id}" type="button">${label}</button>`).join("") + '</div>';
+}
+function renderTabContent(derived){
+  if(currentTab==="verfuegbarkeit") return renderAvailabilityTab(derived);
+  if(currentTab==="bier") return renderBeerTab(derived);
+  if(currentTab==="statistik") return renderStatistikTab(derived);
+  if(currentTab==="info") return renderInfoTab();
+  return "";
+}
+
+/* ===================== TAB: VERFÜGBARKEIT ===================== */
+function infoLine(sess, d){
+  if(sess.ausfall) return `<span class="ausfall-text">Ausfall – ${sess.ausfallReason}. Keine Kosten, zählt nicht mit.</span>`;
+  if(sess.cancelled) return `<span>Abgesagt – Feldkosten (${chf(GROUP_SESSION_COST)}) tragen alle 7 Fixen (je ${chf(CANCELLED_SHARE)}).</span>`;
+  const n = sess.fixAvail.length + sess.extras.length;
+  if(!sess.quorum) return `<span>${n}/4 angemeldet – wartet auf weitere Anmeldungen.</span>`;
+  const all = [...sess.fixAvail, ...sess.extras.map(x => x.key)];
+  const rest = all.filter(p => !sess.confirmed.includes(p));
+  let txt = `Spielt: <span class="hl">${sess.confirmed.map(p => esc(participantName(d,p))).join(", ")}</span>`;
+  if(rest.length) txt += ` · Ersatz: ${rest.map(p => esc(participantName(d,p))).join(", ")}`;
+  return `<span>${txt}</span>`;
+}
+function extraChips(d, sess){
+  const editable = !sess.cancelled && !sess.ausfall;
+  const chips = sess.extras.map(x => {
+    const paid = x.paidTo ? `<span class="paid">→ ${esc(fixName(x.paidTo))}</span>` : `<span class="paid open">→ offen</span>`;
+    return `<button class="chip extra ${kindCls(stateOf(sess, x.key))}" data-action="edit-extra" data-date="${d}" data-key="${x.key}" ${editable?"":"disabled"} title="Gast/Mitglied bearbeiten">${esc(extraLabel(x))}${paid}</button>`;
+  }).join("");
+  const add = editable ? `<button class="add-btn" data-action="add-extra" data-date="${d}" data-typ="gast">+ Gast</button><button class="add-btn" data-action="add-extra" data-date="${d}" data-typ="mitglied">+ Mitglied</button>` : "";
+  return chips + add;
+}
+function cancelBtn(d, sess){
+  if(sess.ausfall || !me.admin) return "";
+  return `<button class="cancel-x ${sess.cancelled?"is-cancelled":""}" data-action="toggle-cancel" data-date="${d}" title="${sess.cancelled?"Reaktivieren":"Termin absagen"}">${sess.cancelled?"↺":"✕"}</button>`;
+}
+function buildTableRows(dates, derived){
+  let rows = "", lastMonth = "";
+  const cols = FIXED.length + 3;
+  for(const d of dates){
+    const sess = derived.perSession[d];
+    const m = monthLabel(d);
+    if(m !== lastMonth){ rows += `<tr class="month-row"><td colspan="${cols}">${m}</td></tr>`; lastMonth = m; }
+    const within = withinRegistrationWindow(d);
+    const rowCls = sess.ausfall ? "ausfall-row" : (sess.cancelled ? "cancelled-row" : "");
+    rows += `<tr class="${rowCls}"><td>${dateD1(d)}${sess.ausfall?' <span class="ausfall-badge">AUSFALL</span>':""}</td>`;
+    for(const f of FIXED){
+      const kind = stateOf(sess, f.id);
+      const locked = !canEditFix(f.id);
+      const tip = locked ? `${f.short} – nur ${f.short} selbst kann das ändern` : (!within && !me.admin ? `«Kann» erst für die nächsten 2 Termine, Absage schon jetzt möglich` : f.short);
+      rows += `<td><button class="ball-btn ${locked?"locked":""}" data-action="toggle-avail" data-date="${d}" data-player="${f.id}" ${(sess.cancelled||sess.ausfall||locked)?"disabled":""} title="${esc(tip)}">${ballSVG(kind)}</button></td>`;
+    }
+    rows += `<td class="extras-cell"><div class="chips" style="margin:0">${extraChips(d, sess)}</div></td>`;
+    rows += `<td>${cancelBtn(d, sess)}</td></tr>`;
+    rows += `<tr class="info-row"><td colspan="${cols}">${infoLine(sess, d)}</td></tr>`;
+  }
+  return rows;
+}
+function buildCards(dates, derived){
+  let cards = "", lastMonth = "";
+  for(const d of dates){
+    const sess = derived.perSession[d];
+    const m = monthLabel(d);
+    if(m !== lastMonth){ cards += `<div class="s-month">${m}</div>`; lastMonth = m; }
+    const status = sessionStatus(d, sess);
+    const statusLabel = {upcoming:"Kommend", today:"Heute", past:"Vergangen", cancelled:"Abgesagt", ausfall:"Ausfall"}[status];
+    const chips = FIXED.map(f => {
+      const locked = !canEditFix(f.id);
+      return `<button class="chip ${kindCls(stateOf(sess, f.id))} ${me.id===f.id?"mine":""}" data-action="toggle-avail" data-date="${d}" data-player="${f.id}" ${(sess.cancelled||sess.ausfall||locked)?"disabled":""}>${esc(f.short)}</button>`;
+    }).join("");
+    cards += `
+    <div class="s-card${sess.ausfall?" ausfall-row":""}">
+      <div class="s-card-head">
+        <div><span class="s-date">${dateD1(d)}</span> <span class="status-pill ${status}">${statusLabel}</span></div>
+        ${cancelBtn(d, sess)}
+      </div>
+      <div class="chips">${chips}</div>
+      ${sess.ausfall ? "" : `<div class="chips">${extraChips(d, sess)}</div>`}
+      <div class="s-info">${infoLine(sess, d)}</div>
+    </div>`;
+  }
+  return cards;
+}
+function renderAvailabilityTab(derived){
+  const isFix = FIXED_IDS.includes(me.id);
+  const legend = `
+    <div class="legend">
+      <span class="legend-item">${ballSVG("neutral",15)} angemeldet, Gruppe noch offen</span>
+      <span class="legend-item">${ballSVG("green",15)} bestätigt, spielt mit</span>
+      <span class="legend-item">${ballSVG("red",15)} angemeldet, diesmal Ersatz</span>
+      <span class="legend-item">${ballSVG("declined",15)} kann nicht</span>
+    </div>
+    <p class="rule-note">${isFix || me.admin
+      ? `Dein Feld: 1× klicken = kann, 2× = kann nicht, 3× = leer. «Kann» geht für die nächsten 2 Termine, eine Absage jederzeit.`
+      : `Du bist nicht in der Fixgruppe: Über <b>+ Mitglied</b> kannst du dich für einen Termin eintragen, wenn ein Platz frei ist.`}
+      Die 7 Fixen haben Vorrang, Gäste und Mitglieder füllen freie Plätze auf und zahlen ihren Anteil (${chf(PER_PLAYER_COST)}) bar einem der Fixen.</p>`;
+  const today = todayISO();
+  const futureDates = SESSIONS.filter(d => d >= today);
+  const pastDates = SESSIONS.filter(d => d < today);
+  const header = `<tr><th>Datum</th>${FIXED.map(f=>`<th class="${me.id===f.id?"me":""}">${esc(f.short)}</th>`).join("")}<th style="text-align:left">Gäste / Mitglieder</th><th></th></tr>`;
+  const table = ds => `<div class="table-scroll"><table class="avail"><thead>${header}</thead><tbody>${buildTableRows(ds, derived)}</tbody></table></div>`;
+  let pastBlock = "";
+  if(pastDates.length){
+    pastBlock = `
+    <details class="past-details only-desktop"><summary>Vergangene Termine anzeigen (${pastDates.length})</summary>${table(pastDates)}</details>
+    <details class="past-details only-mobile"><summary>Vergangene Termine anzeigen (${pastDates.length})</summary>${buildCards(pastDates, derived)}</details>`;
+  }
+  return `
+  <div class="card">
+    ${legend}
+    ${futureDates.length ? "" : '<p style="color:var(--muted); font-size:13px;">Saison ist vorbei – alle Termine stehen unten.</p>'}
+    <div class="only-desktop">${table(futureDates)}</div>
+    <div class="only-mobile">${buildCards(futureDates, derived)}</div>
+    ${pastBlock}
+  </div>`;
+}
+
+/* ===================== DIALOG: GAST / MITGLIED ===================== */
+function openExtraDialog(d, opts){
+  const dlg = document.getElementById("extraDlg");
+  const existing = opts.key ? extrasOf(d).find(x => x.key === opts.key) : null;
+  let typ = existing ? existing.typ : opts.typ;
+  const taken = new Set(extrasOf(d).filter(x => x.memberId && (!existing || x.key !== existing.key)).map(x => x.memberId));
+  const members = Object.entries(MST.directory)
+    .filter(([id]) => !FIXED_IDS.includes(id) && !taken.has(id))
+    .sort((a,b) => a[1].name.localeCompare(b[1].name, "de"));
+  const defaultMember = existing ? existing.memberId : (!FIXED_IDS.includes(me.id) && !me.admin ? me.id : "");
+  const defaultPaid = existing ? (existing.paidTo || "") : "";
+  const draw = () => {
+    dlg.innerHTML = `
+      <h3>${existing ? "Bearbeiten" : "Mitspieler eintragen"}</h3>
+      <p class="dlg-sub">${dateD1(d)} · zahlt ${chf(PER_PLAYER_COST)}, wenn er/sie spielt</p>
+      <form method="dialog" id="extraForm">
+        <div class="seg">
+          <label class="${typ==="gast"?"on":""}"><input type="radio" name="typ" value="gast" ${typ==="gast"?"checked":""}>Gast</label>
+          <label class="${typ==="mitglied"?"on":""}"><input type="radio" name="typ" value="mitglied" ${typ==="mitglied"?"checked":""}>MST-Mitglied</label>
+        </div>
+        ${typ==="gast"
+          ? `<label>Name des Gasts<input name="name" required maxlength="40" value="${existing && existing.typ==="gast" ? esc(existing.name) : ""}" placeholder="z. B. Marco"></label>`
+          : `<label>Mitglied<select name="memberId" required>
+               <option value="">– auswählen –</option>
+               ${members.map(([id,m]) => `<option value="${id}" ${id===defaultMember?"selected":""}>${esc(m.name)}</option>`).join("")}
+             </select></label>`}
+        <label>Bezahlt an (bar)<select name="paidTo">
+          <option value="">noch offen</option>
+          ${FIXED.map(f => `<option value="${f.id}" ${f.id===defaultPaid?"selected":""}>${esc(f.short)}</option>`).join("")}
+        </select></label>
+        <div class="dlg-actions">
+          ${existing ? `<button class="btn-danger" type="button" id="extraDel">Entfernen</button>` : ""}
+          <div class="right">
+            <button class="btn-ghost" type="button" id="extraCancel">Abbrechen</button>
+            <button class="btn-primary" type="submit">Speichern</button>
+          </div>
+        </div>
+      </form>`;
+    dlg.querySelectorAll('input[name="typ"]').forEach(r => r.onchange = () => { typ = r.value; draw(); });
+    dlg.querySelector("#extraCancel").onclick = () => dlg.close();
+    const del = dlg.querySelector("#extraDel");
+    if(del) del.onclick = () => {
+      const usedInBeer = beers.some(b => b.date === d && (b.drinkers||[]).includes(existing.key));
+      if(usedInBeer && !confirm("Dieser Gast ist in einer Bierrunde eingetragen. Trotzdem entfernen?")) return;
+      dlg.close();
+      write(daysCol.doc(d).update({ ["extras." + existing.key]: FV.delete() }));
+    };
+    dlg.querySelector("#extraForm").onsubmit = (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const entry = { typ, ts: existing ? existing.ts : Date.now(), paidTo: f.paidTo.value || null, by: me.id };
+      if(typ === "gast"){
+        entry.name = f.name.value.trim();
+        if(!entry.name) return;
+      } else {
+        entry.memberId = f.memberId.value;
+        if(!entry.memberId) return;
+        entry.name = (MST.directory[entry.memberId] || {}).name || entry.memberId;
+      }
+      const key = existing ? existing.key : "x_" + Math.random().toString(36).slice(2, 10);
+      dlg.close();
+      write(daysCol.doc(d).set({ extras: { [key]: entry } }, { merge:true }));
+    };
+  };
+  draw();
+  dlg.showModal();
+}
+
+/* ===================== TAB: BIERRUNDEN ===================== */
+let beerDraft = null; // { date, payer, amount, note, drinkers:Set }
+function beerDates(){
+  const today = todayISO();
+  return SESSIONS.filter(d => !VENUE_CANCELLED[d] && d <= today).reverse();
+}
+function defaultDrinkers(derived, d){
+  const s = derived.perSession[d];
+  return new Set(s && s.quorum ? s.confirmed : []);
+}
+function renderBeerTab(derived){
+  const dates = beerDates();
+  if(!beerDraft){
+    const d = dates[0] || SESSIONS[0];
+    beerDraft = { date:d, payer: FIXED_IDS.includes(me.id) ? me.id : "", amount:"", note:"", drinkers: defaultDrinkers(derived, d) };
+  }
+  const sess = derived.perSession[beerDraft.date];
+  const people = [...FIXED.map(f => ({ id:f.id, label:f.short })),
+                  ...extrasOf(beerDraft.date).map(x => ({ id:x.key, label:extraLabel(x) }))];
+  const n = beerDraft.drinkers.size;
+  const amt = parseFloat(String(beerDraft.amount).replace(",", ".")) || 0;
+  const form = `
+    <div class="card">
+      <h3>🍺 Bierrunde erfassen</h3>
+      <p class="rule-note" style="margin:0 0 14px;">Wer bezahlt hat, bekommt den Betrag gutgeschrieben. Alle, die mitgetrunken haben, tragen den gleichen Anteil – bei Gästen geht ihr Anteil an den Fixen, dem sie bezahlt haben.</p>
+      <form id="beerForm">
+        <div class="beer-form">
+          <label>Datum<select name="date">${dates.map(d => `<option value="${d}" ${d===beerDraft.date?"selected":""}>${dateD1(d)}</option>`).join("")}</select></label>
+          <label>Bezahlt von<select name="payer" required>
+            <option value="">– wer? –</option>
+            ${FIXED.map(f => `<option value="${f.id}" ${f.id===beerDraft.payer?"selected":""}>${esc(f.short)}</option>`).join("")}
+          </select></label>
+          <label>Betrag (CHF)<input name="amount" inputmode="decimal" required value="${esc(beerDraft.amount)}" placeholder="z. B. 32.50"></label>
+          <label>Bemerkung<input name="note" maxlength="60" value="${esc(beerDraft.note)}" placeholder="optional"></label>
+        </div>
+        <div class="drinkers">
+          ${people.map(p => `<label class="drinker ${beerDraft.drinkers.has(p.id)?"on":""}"><input type="checkbox" name="drinker" value="${p.id}" ${beerDraft.drinkers.has(p.id)?"checked":""}>${esc(p.label)}</label>`).join("")}
+        </div>
+        <p class="rule-note" style="margin:6px 0 12px;">${n ? `${n} Personen · je ${chf(amt / n)}` : "Wer hat mitgetrunken?"}${sess && sess.quorum ? "" : " · An diesem Termin steht noch keine 4er-Gruppe fest."}</p>
+        <button class="btn-primary" type="submit">Bierrunde speichern</button>
+      </form>
+    </div>`;
+  const list = beers.length ? `<ul class="beer-list">${beers.map(b => {
+      const canDel = me.admin || b.by === me.id;
+      const per = (b.drinkers||[]).length ? b.amount / b.drinkers.length : 0;
+      return `<li>
+        <div>
+          <div><b>${esc(fixName(b.payer))}</b> hat bezahlt · ${dateD1(b.date)}${b.note ? ` · ${esc(b.note)}` : ""}</div>
+          <div class="meta">${(b.drinkers||[]).map(id => esc(participantName(b.date, id))).join(", ")} · je ${chf(per)}</div>
+        </div>
+        <div><span class="amt">${chf(Number(b.amount)||0)}</span>${canDel ? `<button class="del-btn" data-action="del-beer" data-id="${b.id}">Löschen</button>` : ""}</div>
+      </li>`;
+    }).join("")}</ul>` : `<p class="rule-note" style="margin:0;">Noch keine Bierrunden erfasst.</p>`;
+  const total = beers.reduce((s,b) => s + (Number(b.amount)||0), 0);
+  return form + `
+    <div class="card">
+      <h3>Bisherige Bierrunden · total ${chf(total)}</h3>
+      ${list}
+    </div>`;
+}
+
+/* ===================== TAB: STATISTIK & ABRECHNUNG ===================== */
+function computeSettlements(net){
+  const creditors = [], debtors = [];
+  for(const p of FIXED_IDS){
+    const v = Math.round((net[p]||0)*100)/100;
+    if(v > 0.05) creditors.push({player:p, amount:v});
+    else if(v < -0.05) debtors.push({player:p, amount:-v});
+  }
+  creditors.sort((a,b)=>b.amount-a.amount);
+  debtors.sort((a,b)=>b.amount-a.amount);
+  const tx = []; let i=0, j=0;
+  while(i<debtors.length && j<creditors.length){
+    const pay = Math.min(debtors[i].amount, creditors[j].amount);
+    if(pay > 0.05) tx.push({from:debtors[i].player, to:creditors[j].player, amount:pay});
+    debtors[i].amount -= pay; creditors[j].amount -= pay;
+    if(debtors[i].amount <= 0.05) i++;
+    if(creditors[j].amount <= 0.05) j++;
+  }
+  return tx;
+}
+function renderStatistikTab(derived){
+  const share = upfrontShare();
+  const rows = FIXED.map(f => ({ id:f.id, name:f.short, games: derived.games[f.id], court: derived.court[f.id] }))
+    .sort((a,b) => a.games - b.games);
+  const totalGames = rows.reduce((s,r)=>s+r.games,0) + derived.extraLedger.filter(r => r.court>0).length;
+  const rank = `
+  <div class="card">
+    <h3>Rangliste – wenigste Spiele oben (hat Vorrang)</h3>
+    <div class="tbl-scroll"><table class="stats">
+      <thead><tr><th>Spieler</th><th class="num">Spiele</th><th class="num">Feldkosten</th></tr></thead>
+      <tbody>${rows.map((r,i) => `<tr><td><span class="rank-badge">${i+1}</span>${esc(r.name)}</td><td class="num">${r.games}</td><td class="num">${chf(r.court)}</td></tr>`).join("")}
+        <tr class="total-row"><td>Total gespielt (inkl. Gäste)</td><td class="num">${totalGames}</td><td></td></tr>
+      </tbody>
+    </table></div>
+    ${totalCancelledSessions() ? `<p class="rule-note" style="margin-top:10px;">${totalCancelledSessions()} abgesagte Termine: alle 7 Fixen tragen je ${chf(CANCELLED_SHARE)} – oben eingerechnet.</p>` : ""}
+  </div>`;
+
+  const guests = derived.extraLedger.length ? `
+  <div class="card">
+    <h3>Gäste & Mitglieder</h3>
+    <div class="tbl-scroll"><table class="stats">
+      <thead><tr><th>Datum</th><th>Wer</th><th class="num">Feld</th><th class="num">Bier</th><th class="num">Total</th><th>Bezahlt an</th></tr></thead>
+      <tbody>${derived.extraLedger.map(r => `<tr>
+        <td>${dateD1(r.date)}</td><td>${esc(r.label)}</td>
+        <td class="num">${r.court ? chf(r.court) : "–"}</td><td class="num">${r.beer ? chf(r.beer) : "–"}</td>
+        <td class="num">${chf(r.court + r.beer)}</td>
+        <td class="${r.paidTo ? "" : "owed-red"}">${r.paidTo ? esc(fixName(r.paidTo)) : "offen"}</td></tr>`).join("")}
+      </tbody>
+    </table></div>
+  </div>` : "";
+
+  const net = {};
+  FIXED_IDS.forEach(p => { net[p] = share - derived.court[p] - derived.collected[p] + derived.beerPaid[p] - derived.beerShare[p]; });
+  const settleRows = [...FIXED].sort((a,b) => net[a.id]-net[b.id]).map(f => {
+    const p = f.id, n = net[p];
+    const cls = n < -0.05 ? "owed-red" : (n > 0.05 ? "owed-green" : "");
+    const label = n < -0.05 ? `zahlt ${chf(-n)}` : (n > 0.05 ? `+ ${chf(n)}` : "ausgeglichen");
+    const beerNet = derived.beerPaid[p] - derived.beerShare[p];
+    return `<tr>
+      <td>${esc(f.short)}</td>
+      <td class="num">${chf(share)}</td>
+      <td class="num">− ${chf(derived.court[p])}</td>
+      <td class="num">${derived.collected[p] ? "− " + chf(derived.collected[p]) : "–"}</td>
+      <td class="num">${Math.abs(beerNet) > 0.004 ? (beerNet > 0 ? "+ " : "− ") + chf(Math.abs(beerNet)) : "–"}</td>
+      <td class="num ${cls}">${label}</td>
+    </tr>`;
+  }).join("");
+  const tx = computeSettlements(net);
+  const txHtml = tx.length
+    ? `<ul class="settle-list">${tx.map(t => `<li><b>${esc(fixName(t.from))}</b> zahlt <b>${chf(t.amount)}</b> an <b>${esc(fixName(t.to))}</b></li>`).join("")}</ul>`
+    : `<p class="rule-note" style="margin:0;">Aktuell nichts auszugleichen.</p>`;
+  const open = derived.openItems.length
+    ? `<div class="warn"><b>Noch offen:</b><br>${derived.openItems.map(esc).join("<br>")}</div>` : "";
+  const unresolved = derived.unresolvedCount
+    ? `<p class="rule-note" style="margin-top:10px;">${derived.unresolvedCount} Termine stehen noch nicht fest (weder gespielt noch abgesagt) – dafür ist noch Guthaben aus der Startzahlung reserviert.</p>` : "";
+  return rank + guests + `
+  <div class="card">
+    <h3>Schlussabrechnung der 7 Fixen</h3>
+    <p class="rule-note" style="margin-bottom:14px;">Startzahlung je ${chf(share)} (1/7 von ${chf(totalGroupShare())}). Davon gehen ab: eigene Feldkosten und Geld, das man von Gästen/Mitgliedern bar bekommen hat. Bierrunden: bezahlt = Gutschrift, mitgetrunken = Anteil. Läuft laufend mit.</p>
+    ${open}
+    <div class="tbl-scroll"><table class="stats">
+      <thead><tr><th>Spieler</th><th class="num">Einbezahlt</th><th class="num">Feld</th><th class="num">Von Gästen</th><th class="num">Bier ±</th><th class="num">Saldo</th></tr></thead>
+      <tbody>${settleRows}</tbody>
+    </table></div>
+    <h3 style="margin-top:20px;">Wer zahlt wem</h3>
+    ${txHtml}
+    ${unresolved}
+  </div>`;
+}
+
+/* ===================== TAB: INFO ===================== */
+function renderInfoTab(){
+  return `
+  <div class="card">
+    <h3>Saison auf einen Blick</h3>
+    <div class="info-grid">
+      <div class="info-item"><div class="lbl">Ort</div><div class="val">Padel am See, Kreuzlingen</div></div>
+      <div class="info-item"><div class="lbl">Zeit</div><div class="val">Donnerstag, 18:00–19:30</div></div>
+      <div class="info-item"><div class="lbl">Zeitraum</div><div class="val">01.10.2026 – 29.04.2027</div></div>
+      <div class="info-item"><div class="lbl">Spieltage geplant</div><div class="val">${SESSIONS.length}</div></div>
+      <div class="info-item"><div class="lbl">Ausfall (Halle)</div><div class="val">${totalVenueCancelledSessions()}</div></div>
+      <div class="info-item"><div class="lbl">Abgesagt (Gruppe)</div><div class="val">${totalCancelledSessions()}</div></div>
+      <div class="info-item"><div class="lbl">Verrechnete Spieltage</div><div class="val">${totalBillableSessions()}</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Kosten &amp; Abrechnung</h3>
+    <div class="info-grid">
+      <div class="info-item"><div class="lbl">Preis pro Feldstunde</div><div class="val">${chf(HOURLY_RATE)}</div></div>
+      <div class="info-item"><div class="lbl">Pro Spieltag (1.5 Std.)</div><div class="val">${chf(SESSION_COST)}</div></div>
+      <div class="info-item"><div class="lbl">Pro Spieler (bei 4)</div><div class="val">${chf(PER_PLAYER_COST)}</div></div>
+      <div class="info-item"><div class="lbl">Pro Fixem bei Absage</div><div class="val">${chf(CANCELLED_SHARE)}</div></div>
+      <div class="info-item"><div class="lbl">Total Saison (Feld)</div><div class="val">${chf(totalSeasonCost())}</div></div>
+      <div class="info-item"><div class="lbl">Bleibt beim Verein (10%)</div><div class="val">${chf(totalClubShare())}</div></div>
+      <div class="info-item"><div class="lbl">Gruppe zahlt (90%)</div><div class="val">${chf(totalGroupShare())}</div></div>
+    </div>
+    <p style="font-size:12.5px; color:var(--muted); margin:14px 0 0;">Der Verein bucht das Feld für die ganze Saison fix. Die 7 Fixen zahlen zu Beginn je 1/7 der Gruppenkosten ein und rechnen am Schluss untereinander ab. Basis ist die Rechnung R-2600075 der Tennishalle vom 15.08.2026: ${totalBillableSessions()} von ${SESSIONS.length} Terminen werden verrechnet, ${totalVenueCancelledSessions()} sind Ausfall der Halle.</p>
+  </div>
+  <div class="card">
+    <h3>So funktioniert's</h3>
+    <ul class="ball-list">
+      <li>${ballSVG("neutral",17)}<span>Jeder Fixe setzt <b>nur sein eigenes Feld</b>: 1× = kann, 2× = kann nicht, 3× = leer. «Kann» geht für die <b>nächsten 2 Termine</b>, eine Absage jederzeit im Voraus.</span></li>
+      <li>${ballSVG("green",17)}<span>Ab <b>4 Anmeldungen</b> bestimmt die Seite die 4 Spielenden. <b>Die 7 Fixen haben Vorrang</b> (wer weniger gespielt hat zuerst, bei Gleichstand wer sich zuerst angemeldet hat).</span></li>
+      <li>${ballSVG("red",17)}<span><b>Gäste und MST-Mitglieder</b> (Knöpfe «+ Gast» / «+ Mitglied») füllen nur freie Plätze auf. Sie zahlen ${chf(PER_PLAYER_COST)} <b>bar einem der Fixen</b> – das wird bei «Bezahlt an» eingetragen und diesem Fixen in der Abrechnung belastet, weil er das Geld schon hat.</span></li>
+      <li>${ballSVG("neutral",17)}<span><b>Bierrunden:</b> Wer bezahlt, bekommt den Betrag gutgeschrieben; alle, die mitgetrunken haben, tragen den gleichen Anteil.</span></li>
+      <li>${ballSVG("declined",17)}<span>Einen Termin <b>absagen</b> kann nur der Admin. Dann tragen alle 7 Fixen die Kosten zu gleichen Teilen.</span></li>
+      <li>${ballSVG("empty",17)}<span><b>Ausfall</b> (grau) sind Termine, die die Tennishalle selbst gestrichen hat: ${Object.keys(VENUE_CANCELLED).map(d=>dateD1(d)).join(", ")}. Kosten nichts.</span></li>
+    </ul>
+  </div>`;
+}
+
+/* ===================== EVENTS ===================== */
+function attachHandlers(derived){
+  document.querySelectorAll(".tabbtn").forEach(btn => btn.addEventListener("click", () => { currentTab = btn.dataset.tab; render(); }));
+  const panel = document.getElementById("panelContent");
+  panel.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-action]");
+    if(!t || t.disabled) return;
+    const action = t.dataset.action, d = t.dataset.date;
+    if(action === "toggle-avail"){
+      const p = t.dataset.player;
+      if(!canEditFix(p)) return;
+      const cur = (days[d] || {})[p];
+      let next;
+      if(withinRegistrationWindow(d) || me.admin){
+        next = cur === undefined ? Date.now() : (typeof cur === "number" ? "declined" : null);
+      } else {
+        next = cur === undefined ? "declined" : null;
+      }
+      if(next === null && !days[d]) return;
+      write(daysCol.doc(d).set({ [p]: next === null ? FV.delete() : next }, { merge:true }));
+    } else if(action === "toggle-cancel"){
+      if(!me.admin) return;
+      const on = !(days[d] && days[d].cancelled);
+      if(on && !confirm(`Termin ${dateD1(d)} absagen? Dann tragen alle 7 Fixen die Kosten.`)) return;
+      write(daysCol.doc(d).set({ cancelled: on }, { merge:true }));
+    } else if(action === "add-extra"){
+      openExtraDialog(d, { typ: t.dataset.typ });
+    } else if(action === "edit-extra"){
+      openExtraDialog(d, { key: t.dataset.key });
+    } else if(action === "del-beer"){
+      if(confirm("Bierrunde löschen?")) write(beerCol.doc(t.dataset.id).delete());
+    }
+  });
+
+  const bf = document.getElementById("beerForm");
+  if(bf){
+    bf.date.onchange = () => { beerDraft.date = bf.date.value; beerDraft.drinkers = defaultDrinkers(derived, beerDraft.date); render(); };
+    bf.payer.onchange = () => { beerDraft.payer = bf.payer.value; };
+    bf.amount.oninput = () => { beerDraft.amount = bf.amount.value; };
+    bf.amount.onchange = () => render();
+    bf.note.oninput = () => { beerDraft.note = bf.note.value; };
+    bf.querySelectorAll('input[name="drinker"]').forEach(cb => cb.onchange = () => {
+      cb.checked ? beerDraft.drinkers.add(cb.value) : beerDraft.drinkers.delete(cb.value);
+      render();
+    });
+    bf.onsubmit = (e) => {
+      e.preventDefault();
+      const amount = Math.round((parseFloat(String(beerDraft.amount).replace(",", ".")) || 0) * 100) / 100;
+      if(!beerDraft.payer){ alert("Wer hat bezahlt?"); return; }
+      if(!(amount > 0)){ alert("Bitte einen Betrag eingeben."); return; }
+      if(!beerDraft.drinkers.size){ alert("Bitte ankreuzen, wer mitgetrunken hat."); return; }
+      const entry = { date:beerDraft.date, payer:beerDraft.payer, amount, drinkers:[...beerDraft.drinkers], note:beerDraft.note.trim(), by:me.id, at:Date.now() };
+      beerDraft = null;
+      write(beerCol.add(entry));
+    };
+  }
+}
+</script>
+</body>
+</html>

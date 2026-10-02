@@ -18,7 +18,6 @@
 <style>
   .home-hero{position:relative; display:flex; align-items:center; gap:22px; padding:34px 4px 26px; overflow:hidden;}
   .home-hero .logo{width:96px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
-  .home-hero .dog{position:absolute; right:-20px; top:-20px; width:220px; opacity:.06; filter:grayscale(1) brightness(3); pointer-events:none;}
   .eyebrow{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--yellow);}
   .home-title{font-family:var(--font-display); font-weight:700; text-transform:uppercase; font-size:clamp(28px,7vw,48px); line-height:1; margin:4px 0;}
   .home-sub{color:var(--muted); font-size:14px; margin:0;}
@@ -38,7 +37,7 @@
 
   #adminArea{margin:22px 4px 0;}
   .member-form{display:grid; grid-template-columns:90px 1fr 1fr 1fr auto; gap:10px; align-items:end;}
-  @media (max-width:720px){ .member-form{grid-template-columns:1fr 1fr;} .member-form .btn-primary{grid-column:1/-1;} .home-hero .dog{display:none;} }
+  @media (max-width:720px){ .member-form{grid-template-columns:1fr 1fr;} .member-form .btn-primary{grid-column:1/-1;} }
   table.members{border-collapse:collapse; width:100%; margin-top:14px; font-size:13px;}
   table.members td, table.members th{padding:7px 8px; border-bottom:1px solid var(--line); text-align:left;}
   table.members th{font-family:var(--font-display); text-transform:uppercase; font-size:11px; color:var(--muted); font-weight:500;}
@@ -54,7 +53,6 @@
     <div id="userbar"></div>
   </div>
   <div class="home-hero">
-    <img class="dog" src="assets/hund.png" alt="">
     <img class="logo" src="assets/logo.png" alt="MST Ermatingen Wappen">
     <div>
       <span class="eyebrow">Verein · seit 2023</span>

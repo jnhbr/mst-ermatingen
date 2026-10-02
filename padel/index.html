@@ -18,7 +18,6 @@
 <style>
   /* ---------- HERO ---------- */
   .hero{position:relative; padding:22px 4px 22px; display:flex; flex-wrap:wrap; gap:20px; align-items:flex-end; justify-content:space-between; overflow:hidden;}
-  .hero-dog{position:absolute; right:-30px; top:-10px; width:170px; opacity:0.05; filter:grayscale(1) brightness(3); pointer-events:none;}
   .hero-left{display:flex; gap:16px; align-items:center; z-index:1;}
   .hero-logo{width:60px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
   .hero-titles{display:flex; flex-direction:column; gap:3px;}
@@ -106,7 +105,6 @@
   @media (max-width:720px){
     .only-desktop{display:none;}
     .only-mobile{display:block;}
-    .hero-dog{display:none;}
   }
 
   details.past-details{margin-top:16px; border-top:1px solid var(--line); padding-top:12px;}
@@ -438,7 +436,6 @@ function renderTopbar(){
 function renderHero(){
   return `
   <div class="hero">
-    <img class="hero-dog" src="../assets/hund.png" alt="">
     <div class="hero-left">
       <img class="hero-logo" src="../assets/logo.png" alt="MST Ermatingen Wappen">
       <div class="hero-titles">

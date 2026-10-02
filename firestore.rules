@@ -119,5 +119,17 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'doneBy', 'doneByName', 'doneAt'])
         && (request.resource.data.done == false || request.resource.data.doneBy == me());
     }
+
+    // ---------- GV ----------
+    // gv/<jahr> = Angaben zur GV, gv/<jahr>/chunks/<n> = PDF der Übersicht (Base64-Stücke).
+    // Enthält Finanzen -> nur für eingeloggte Mitglieder.
+    match /gv/{year} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+    }
+    match /gv/{year}/chunks/{n} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+    }
   }
 }

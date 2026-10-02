@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GV · MST Ermatingen</title>
+<link rel="manifest" href="../manifest.json">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="icon" href="../assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#141311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/mst.css?v=202610021817">
+<style>
+  .doc-bar{display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin:0 4px 14px;}
+  .doc-bar .meta{color:var(--muted); font-size:12.5px;}
+  .doc-bar a.btn-ghost{text-decoration:none;}
+  .pages{display:flex; flex-direction:column; align-items:center; gap:14px; margin:0 4px;}
+  .pages canvas{width:100%; max-width:860px; height:auto; border-radius:6px; box-shadow:0 8px 30px rgba(0,0,0,.45); background:#fff;}
+  .upload{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; align-items:end;}
+  .upload input[type=file]{padding:7px;}
+</style>
+</head>
+<body>
+<div id="gate"><div class="loading">lade …</div></div>
+<div id="app"><div class="loading">lade …</div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="../js/mst.js?v=202610021817" data-base="../"></script>
+<script>
+/* GV-Übersicht: PDF liegt in Firestore (gv/<jahr> + gv/<jahr>/chunks/<n>, Base64),
+   weil das Repo öffentlich ist und die Übersicht Finanzen enthält. Nur für Mitglieder. */
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const CHUNK = 700000;
+let me = null, years = [], YEAR = null, blobUrl = null;
+
+MST.start(async (user) => {
+  me = user;
+  const snap = await db.collection("gv").get();
+  years = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b) => b.id.localeCompare(a.id));
+  openYear(years[0] && years[0].id);
+});
+
+function shell(inner){
+  const app = document.getElementById("app");
+  const picker = years.length > 1 ? `<select class="season-select" id="yearSelect">${years.map(y => `<option value="${y.id}" ${y.id===YEAR?"selected":""}>GV ${y.id}</option>`).join("")}</select>` : "";
+  app.innerHTML = `
+    <div class="topbar"><span class="crumbs"><a href="../">MST Ermatingen</a> / GV</span><div id="userbar"></div></div>
+    <div class="hero">
+      <div class="hero-left">
+        <img class="hero-logo" src="../assets/logo.png" alt="MST Ermatingen Wappen">
+        <div class="hero-titles">
+          <span class="eyebrow">Generalversammlung${YEAR ? " " + esc(YEAR) : ""}</span>
+          <h1 class="hero-title">GV-Übersicht</h1>
+          <p class="hero-sub">Traktanden, Finanzen, Kontobewegungen und Beschlüsse – nur für Mitglieder</p>
+          ${picker}
+        </div>
+      </div>
+    </div>
+    <div class="court-line"></div>
+    ${inner}
+    ${me.admin ? adminCard() : ""}`;
+  MST.renderUserBar();
+  const ys = document.getElementById("yearSelect");
+  if(ys) ys.onchange = () => openYear(ys.value);
+  const up = document.getElementById("uploadForm");
+  if(up) up.onsubmit = upload;
+}
+
+async function openYear(y){
+  YEAR = y;
+  if(!y){ shell('<div class="card" style="margin:0 4px;"><p class="rule-note" style="margin:0;">Noch keine GV-Übersicht hochgeladen.</p></div>'); return; }
+  const g = years.find(x => x.id === y);
+  shell('<div class="loading">lade Übersicht …</div>');
+  try{
+    const parts = await Promise.all([...Array(g.chunks).keys()].map(i => db.collection("gv").doc(y).collection("chunks").doc(String(i)).get()));
+    const bin = atob(parts.map(p => p.data().data).join(""));
+    const bytes = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    if(blobUrl) URL.revokeObjectURL(blobUrl);
+    blobUrl = URL.createObjectURL(new Blob([bytes], { type:"application/pdf" }));
+    shell(`
+      <div class="doc-bar">
+        <span class="meta">${esc(g.title || "GV-Übersicht")}${g.date ? " · " + esc(g.date.split("-").reverse().join(".")) : ""}</span>
+        <a class="btn-ghost" href="${blobUrl}" download="${esc(g.fileName || "GV_Uebersicht.pdf")}">PDF herunterladen</a>
+      </div>
+      <div class="pages" id="pages"></div>`);
+    const pdf = await pdfjsLib.getDocument({ data:bytes }).promise;
+    const box = document.getElementById("pages");
+    for(let n = 1; n <= pdf.numPages; n++){
+      const page = await pdf.getPage(n);
+      const scale = Math.min(2.5, (Math.min(860, box.clientWidth) / page.getViewport({ scale:1 }).width) * (window.devicePixelRatio || 1));
+      const vp = page.getViewport({ scale });
+      const c = document.createElement("canvas");
+      c.width = vp.width; c.height = vp.height;
+      box.appendChild(c);
+      await page.render({ canvasContext:c.getContext("2d"), viewport:vp }).promise;
+    }
+  }catch(e){
+    console.error(e);
+    shell('<div class="card" style="margin:0 4px;"><p class="rule-note" style="margin:0;">Übersicht konnte nicht geladen werden.</p></div>');
+  }
+}
+
+function adminCard(){
+  const next = String(new Date().getFullYear());
+  return `<div class="card admin-card" style="margin:18px 4px 0;">
+    <h3>Admin · Übersicht hochladen</h3>
+    <p class="rule-note" style="margin:0 0 12px;">PDF der GV-Übersicht (max. ca. 5 MB). Gleiches Jahr nochmals hochladen ersetzt die bisherige Datei.</p>
+    <form id="uploadForm" class="upload">
+      <label>Jahr<input name="year" value="${esc(YEAR || next)}" pattern="\\d{4}" required></label>
+      <label>Titel<input name="title" value="${esc((years.find(x => x.id === YEAR) || {}).title || "Generalversammlung MST Ermatingen")}" required></label>
+      <label>Datum der GV<input name="date" type="date"></label>
+      <label>PDF<input name="file" type="file" accept="application/pdf" required></label>
+      <button class="btn-primary" type="submit">Hochladen</button>
+    </form>
+    <p class="form-msg rule-note" id="upMsg" style="margin:10px 0 0;"></p>
+  </div>`;
+}
+
+async function upload(e){
+  e.preventDefault();
+  const f = e.target, msg = document.getElementById("upMsg");
+  const file = f.file.files[0], y = f.year.value.trim();
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024){ msg.textContent = "Die Datei ist zu gross (max. 5 MB)."; return; }
+  msg.textContent = "lade hoch …";
+  try{
+    const buf = new Uint8Array(await file.arrayBuffer());
+    let bin = ""; for(let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    const b64 = btoa(bin);
+    const n = Math.ceil(b64.length / CHUNK);
+    const ref = db.collection("gv").doc(y);
+    const old = await ref.collection("chunks").get();
+    for(const d of old.docs) if(+d.id >= n) await d.ref.delete();
+    for(let i = 0; i < n; i++) await ref.collection("chunks").doc(String(i)).set({ data:b64.slice(i * CHUNK, (i + 1) * CHUNK) });
+    const meta = { title:f.title.value.trim(), date:f.date.value, fileName:file.name, chunks:n, size:file.size, uploadedAt:Date.now() };
+    await ref.set(meta);
+    MST.log("gv", `GV-Übersicht ${y} hochgeladen (${file.name})`);
+    const i = years.findIndex(x => x.id === y);
+    if(i >= 0) years[i] = { id:y, ...meta }; else years.push({ id:y, ...meta });
+    years.sort((a,b) => b.id.localeCompare(a.id));
+    openYear(y);
+  }catch(err){ console.error(err); msg.textContent = "Hochladen fehlgeschlagen."; }
+}
+</script>
+</body>
+</html>

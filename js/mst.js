@@ -193,3 +193,13 @@ const MST = {
 function esc(s){
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 }
+
+/* Fusszeile mit Social Media auf jeder Seite (ausserhalb von #app, damit sie Neuzeichnen übersteht). */
+MST.INSTAGRAM = "https://www.instagram.com/minispieltag/";
+MST.instagramIcon = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>';
+document.addEventListener("DOMContentLoaded", () => {
+  const f = document.createElement("footer");
+  f.className = "site-foot";
+  f.innerHTML = `<a href="${MST.INSTAGRAM}" target="_blank" rel="noopener">${MST.instagramIcon}<span>@minispieltag</span></a>`;
+  document.body.appendChild(f);
+});

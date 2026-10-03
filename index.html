@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/mst.css?v=202610031107">
+<link rel="stylesheet" href="css/mst.css?v=202610031500">
 <style>
   .home-hero{position:relative; display:flex; align-items:center; gap:22px; padding:34px 4px 26px; overflow:hidden;}
   .home-hero .logo{width:96px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
@@ -55,6 +55,17 @@
   .log-who{color:var(--yellow);}
   @media (max-width:720px){ .log-list li{grid-template-columns:1fr 1fr;} .log-text{grid-column:1/-1;} }
   .form-msg{font-size:12.5px; color:var(--muted); margin:8px 0 0; min-height:1.2em;}
+
+  /* Nächste Termine aus dem Kalender */
+  .next-events{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr)); gap:8px; margin:0 4px 16px;}
+  .next-ev{display:flex; gap:12px; align-items:center; padding:10px 14px; border-radius:var(--radius-sm); background:var(--bg-elev); border:1px solid var(--line); color:var(--white); text-decoration:none; min-width:0;}
+  .next-ev:first-child{border-color:var(--yellow);}
+  .next-ev:hover{border-color:var(--yellow);}
+  .next-ev .ne-when{font-family:var(--font-mono); font-size:10.5px; color:var(--yellow); text-transform:uppercase; letter-spacing:.06em; white-space:nowrap;}
+  .next-ev .ne-title{font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .next-ev .ne-sub{font-size:12px; color:var(--muted);}
+  .next-ev > span:last-child{min-width:0;}
+  .tile.insta .tile-icon{color:var(--yellow);}
 </style>
 </head>
 <body>
@@ -74,7 +85,15 @@
   </div>
   <div class="court-line"></div>
 
+  <div class="next-events" id="nextEvents" hidden></div>
+
   <div class="tiles">
+    <a class="tile active" href="kalender/" id="kalTile" hidden>
+      <span class="tile-go">Öffnen →</span>
+      <span class="tile-icon">📅</span>
+      <span class="tile-title">Kalender</span>
+      <span class="tile-text">Alle Termine des Vereins – gleich wie der Google Kalender «MST», zum Abonnieren aufs Handy.</span>
+    </a>
     <a class="tile active" href="padel/">
       <span class="tile-go">Öffnen →</span>
       <span class="tile-icon">🎾</span>
@@ -111,6 +130,12 @@
       <span class="tile-title">Finanzen</span>
       <span class="tile-text">Jahresbeiträge (wer hat bezahlt?), Kontobewegungen mit Belegen, Afterworkbar-Abrechnung.</span>
     </a>
+    <a class="tile active insta" href="https://www.instagram.com/minispieltag/" target="_blank" rel="noopener">
+      <span class="tile-go">Instagram ↗</span>
+      <span class="tile-icon"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></span>
+      <span class="tile-title">@minispieltag</span>
+      <span class="tile-text">Fotos und News vom Minispieltag, der Afterworkbar und allem dazwischen.</span>
+    </a>
   </div>
 
   <div id="adminArea" hidden></div>
@@ -120,12 +145,32 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="js/mst.js?v=202610031107" data-base=""></script>
+<script src="js/mst.js?v=202610031500" data-base=""></script>
+<script src="js/kalender.js?v=202610031500"></script>
 <script>
 MST.start((user) => {
   document.getElementById("greeting").textContent = `Hoi ${user.short}!`;
+  showNextEvents();
   if(user.admin){ document.getElementById("orgTile").hidden = false; renderAdmin(); }
 });
+
+/* ---------- Die nächsten drei Termine (Kalender) ---------- */
+async function showNextEvents(){
+  if(!KAL.ready()) return;   // Kachel erst zeigen, wenn die Google-Brücke eingerichtet ist
+  document.getElementById("kalTile").hidden = false;
+  const el = document.getElementById("nextEvents");
+  const draw = list => {
+    const next = list.filter(e => !KAL.isPast(e)).slice(0, 3);
+    el.hidden = !next.length;
+    el.innerHTML = next.map(e => `<a class="next-ev" href="kalender/">
+      <span style="font-size:22px">${KAL.kind(e).icon}</span>
+      <span><span class="ne-when">${esc(KAL.countdown(e))}</span><br><span class="ne-title">${esc(e.title)}</span><br><span class="ne-sub">${esc(KAL.when(e))}</span></span>
+    </a>`).join("");
+  };
+  const c = KAL.cached();
+  if(c) draw(c.events);
+  try{ draw(await KAL.load(false)); }catch(e){ console.warn("Kalender", e); }
+}
 
 /* ---------- Admin: Mitglieder verwalten ---------- */
 const today = () => new Date().toISOString().slice(0, 10);

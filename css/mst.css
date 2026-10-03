@@ -145,3 +145,10 @@ textarea{background:var(--bg); color:var(--white); border:1px solid var(--line-s
 
 .admin-card{border-color:var(--yellow-soft);}
 .season-select{margin-top:8px; padding:5px 8px; font-size:12.5px; background:var(--bg-elev); width:auto;}
+
+/* ---------- Fusszeile (Social Media, aus mst.js) ---------- */
+.site-foot{display:flex; justify-content:center; padding:0 16px 34px; margin-top:-40px;}
+.site-foot a{display:inline-flex; align-items:center; gap:7px; color:var(--muted); text-decoration:none; font-family:var(--font-mono); font-size:11.5px; letter-spacing:.04em; padding:6px 12px; border:1px solid var(--line); border-radius:20px;}
+.site-foot a:hover{color:var(--yellow); border-color:var(--yellow);}
+body.tv-mode .site-foot{display:none;}
+@media print{ .site-foot{display:none !important;} }

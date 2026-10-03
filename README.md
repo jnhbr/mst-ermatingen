@@ -24,7 +24,12 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
 - `js/spieltag-stats.js` – bester Partner, Angstgegner, Rekorde; `archiveYear()` schreibt beim Abschliessen Rangliste, Teams, Duelle, Rohresultate
 - `js/spieltag-data.js` / `js/spieltag-ui.js` – Datenzugriff (mit Testmodus) und Dialog «Spiel einstellen»
 - `padel/` – Padelgruppe: Verfügbarkeit, Gäste/Mitglieder, Bierrunden, Statistik & Schlussabrechnung
-- `js/mst.js` – Firebase-Init (Projekt `minispieltag`) und Login
+- `kalender/` + `js/kalender.js` – Vereinskalender, **öffentlich**: Kommend, Monat, Vergangen, Abonnieren (webcal/Google/Outlook).
+  Quelle der Wahrheit ist der Google Kalender «MST» – kein Firestore. Die Seite liest/schreibt über die
+  Apps-Script-Web-App `apps-script/kalender/` (Einrichtung dort im README, URL in `js/kalender.js` → `API`).
+  Eintragen/ändern/löschen nur Vorstand (Firebase-Token wird im Skript geprüft); Serientermine nur in Google.
+  Abo-Feed = `<API>?format=ics`. Die Startseite zeigt die nächsten 3 Termine.
+- `js/mst.js` – Firebase-Init (Projekt `minispieltag`), Login und die Instagram-Fusszeile (@minispieltag) auf allen Seiten
 - `css/mst.css` – gemeinsames Design (Schwarz/Gelb aus dem Wappen)
 - `firestore.rules` – Regeln für das ganze Firebase-Projekt (auch die Spieltag-Seite!),
   deployen mit `firebase deploy --only firestore:rules`

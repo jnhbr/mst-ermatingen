@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalender · MST Ermatingen</title>
+<link rel="manifest" href="../manifest.json">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="icon" href="../assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#141311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/mst.css?v=202610031500">
+<style>
+  .muted{color:var(--muted);}
+  .notice{border:1px solid var(--yellow); background:var(--yellow-soft); border-radius:var(--radius-sm); padding:10px 12px; font-size:13px; margin:0 4px 14px;}
+  .notice.red{border-color:var(--red); background:var(--red-soft);}
+  .toolbar{justify-content:space-between; flex-wrap:wrap;}
+  .sync{font-family:var(--font-mono); font-size:11px; color:var(--muted-2); display:flex; align-items:center; gap:8px;}
+  .sync button{background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:2px 4px;}
+  .sync button:hover{color:var(--yellow);}
+  .sync .dot{width:7px; height:7px; border-radius:50%; background:var(--green);}
+  .sync.busy .dot{background:var(--yellow);}
+  .sync.err .dot{background:var(--red);}
+
+  /* ---------- Liste ---------- */
+  .month-head{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--yellow); margin:18px 0 8px;}
+  .month-head:first-child{margin-top:0;}
+  .ev{display:grid; grid-template-columns:58px 1fr auto; gap:14px; align-items:center; width:100%; text-align:left; background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius); padding:10px 14px 10px 10px; color:var(--white); cursor:pointer; font:inherit; margin-bottom:8px;}
+  .ev:hover{border-color:var(--line-strong);}
+  .ev.next{border-color:var(--yellow); background:linear-gradient(160deg, var(--yellow-soft), var(--bg-elev) 55%);}
+  .ev.past{opacity:.6;}
+  .ev-date{display:flex; flex-direction:column; align-items:center; line-height:1; border-right:1px solid var(--line); padding-right:12px;}
+  .ev-date .wd{font-family:var(--font-mono); font-size:10px; text-transform:uppercase; color:var(--muted); letter-spacing:.08em;}
+  .ev-date .d{font-family:var(--font-display); font-size:30px; color:var(--white); margin:2px 0 1px;}
+  .ev-date .m{font-family:var(--font-mono); font-size:10px; text-transform:uppercase; color:var(--yellow); letter-spacing:.08em;}
+  .ev-title{font-weight:600; font-size:15.5px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap;}
+  .ev-meta{font-size:12.5px; color:var(--muted); margin-top:3px;}
+  .ev-meta .loc::before{content:"· ";}
+  .ev-side{text-align:right; font-family:var(--font-mono); font-size:11px; color:var(--muted); white-space:nowrap;}
+  .ev.next .ev-side{color:var(--yellow);}
+  @media (max-width:520px){
+    .ev{grid-template-columns:58px 1fr; row-gap:2px;}
+    .ev-side{grid-column:2; text-align:left;}
+    .ev-side:empty{display:none;}
+  }
+  .tag{font-family:var(--font-mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; border:1px solid var(--line-strong); color:var(--muted); border-radius:4px; padding:1px 5px; font-weight:400;}
+  .empty{color:var(--muted); font-size:14px; padding:20px 4px;}
+  details.year{margin-bottom:10px;}
+  details.year summary{cursor:pointer; list-style:none; font-family:var(--font-display); text-transform:uppercase; font-size:17px; padding:8px 0;}
+  details.year summary::-webkit-details-marker{display:none;}
+  details.year summary::before{content:"▸ "; color:var(--yellow);}
+  details.year[open] summary::before{content:"▾ ";}
+  details.year summary small{font-family:var(--font-mono); font-size:11px; color:var(--muted); text-transform:none;}
+
+  /* ---------- Monat ---------- */
+  .mnav{display:flex; align-items:center; gap:8px; margin-bottom:12px;}
+  .mnav h2{font-family:var(--font-display); text-transform:uppercase; font-size:24px; margin:0 auto 0 0; letter-spacing:.02em;}
+  .grid{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px;}
+  .grid .wdh{font-family:var(--font-mono); font-size:10px; text-transform:uppercase; color:var(--muted); text-align:center; padding:4px 0; letter-spacing:.08em;}
+  .cell{min-height:96px; background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm); padding:5px; display:flex; flex-direction:column; gap:3px; min-width:0;}
+  .cell.out{opacity:.35;}
+  .cell.today{border-color:var(--yellow);}
+  .cell.add{cursor:pointer;}
+  .cell.add:hover{border-color:var(--line-strong);}
+  .cell .n{font-family:var(--font-mono); font-size:11px; color:var(--muted);}
+  .cell.today .n{color:var(--yellow); font-weight:700;}
+  .chip{display:block; width:100%; text-align:left; background:var(--yellow-soft); color:var(--white); border:none; border-left:3px solid var(--yellow); border-radius:4px; padding:3px 5px; font-size:11.5px; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:inherit;}
+  .chip.cont{border-left-color:transparent; color:var(--muted);}
+  .chip.timed{background:var(--bg-elev-3); border-left-color:var(--muted);}
+  @media (max-width:640px){
+    .cell{min-height:64px; padding:3px;}
+    .chip{font-size:0; padding:0; height:6px; border-left:none; background:var(--yellow);}
+    .chip.timed{background:var(--muted);}
+    .chip.cont{background:var(--yellow-soft);}
+    .day-list{display:block;}
+  }
+  .day-list{display:none; margin-top:14px;}
+
+  /* ---------- Abo ---------- */
+  .sub-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr)); gap:12px;}
+  .sub-card{display:flex; flex-direction:column; gap:8px; margin:0 !important;}
+  .sub-card p{font-size:13px; color:var(--muted); margin:0;}
+  .sub-card .btn-primary, .sub-card .btn-ghost{text-align:center; text-decoration:none; margin-top:auto;}
+  .feed-url{font-family:var(--font-mono); font-size:11.5px; word-break:break-all; background:var(--bg); border:1px solid var(--line); border-radius:var(--radius-sm); padding:8px 10px; color:var(--muted);}
+  ol.steps{margin:0; padding-left:18px; font-size:13px; color:var(--muted); line-height:1.6;}
+
+  /* ---------- Dialog ---------- */
+  dialog{width:min(480px, calc(100vw - 32px));}
+  .dlg-when{font-family:var(--font-mono); font-size:12px; color:var(--yellow); margin:0 0 12px;}
+  .dlg-body{font-size:14px; line-height:1.5; color:var(--white); overflow-wrap:anywhere;}
+  .dlg-body p{margin:0 0 10px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .row2[hidden]{display:none;}
+  dialog input, dialog textarea{width:100%;}
+  dialog textarea{font-family:var(--font-body); min-height:70px;}
+  .presets{display:flex; flex-wrap:wrap; gap:6px;}
+  .presets .btn-small{padding:4px 10px; font-size:12px;}
+  .dlg-msg{font-size:12.5px; color:var(--red); min-height:1.2em; margin:0;}
+  .check{flex-direction:row; align-items:center; gap:8px; text-transform:none; letter-spacing:0; font-size:13.5px; color:var(--white); cursor:pointer;}
+  .check input{width:16px; height:16px; accent-color:var(--yellow); padding:0;}
+</style>
+</head>
+<body>
+<div id="gate" hidden></div>
+<div id="app"><div class="loading">lade Kalender …</div></div>
+<dialog id="dlg"></dialog>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../js/mst.js?v=202610031500" data-base="../"></script>
+<script src="../js/kalender.js?v=202610031500"></script>
+<script>
+/* ---------- Zustand ---------- */
+let events = [], loadedAt = null, syncState = "busy", syncError = "";
+let viewer = { vorstand:false, name:"" };
+let view = location.hash.slice(1) || "kommend";
+let month = KAL.today().slice(0, 7);          // "YYYY-MM" der Monatsansicht
+const app = document.getElementById("app"), dlg = document.getElementById("dlg");
+const MONTHS = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const canEdit = () => viewer.vorstand && KAL.ready();
+
+/* ---------- Start ---------- */
+const c = KAL.cached();
+if(c){ events = c.events; loadedAt = c.at; }
+render();
+refresh(false);
+setInterval(() => { if(!document.hidden) refresh(false); }, 5 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if(!document.hidden && loadedAt && Date.now() - loadedAt > 60 * 1000) refresh(false); });
+window.addEventListener("hashchange", () => { view = location.hash.slice(1) || "kommend"; render(); });
+
+MST._onReady = () => refreshViewer(auth.currentUser);
+auth.onAuthStateChanged(u => refreshViewer(u));
+async function refreshViewer(u){
+  viewer = { vorstand:false, name:"" };
+  if(KAL.testVorstand()){
+    viewer = { vorstand:true, name:"Test", role:"admin" };
+    MST.user = { id:"m10", name:"Test" }; MST.log = () => {};
+  } else if(u && !u.isAnonymous){
+    try{ const usr = await MST.loadVorstand(u); viewer = { vorstand:true, name:usr.name, role:usr.role }; }catch(e){ console.warn(e); }
+  }
+  const gate = document.getElementById("gate");
+  if(viewer.vorstand && !gate.hidden){ gate.hidden = true; gate.innerHTML = ""; }
+  render();
+}
+
+async function refresh(fresh){
+  if(!KAL.ready()){ syncState = "err"; render(); return; }
+  syncState = "busy"; renderSync();
+  try{
+    events = await KAL.load(fresh);
+    loadedAt = Date.now(); syncState = "ok"; syncError = "";
+  }catch(e){
+    console.error(e); syncState = "err"; syncError = e.message;
+  }
+  render();
+}
+
+/* ---------- Seite ---------- */
+function render(){
+  const upcoming = events.filter(e => !KAL.isPast(e));
+  const next = upcoming[0];
+  const thisYear = KAL.today().slice(0, 4);
+  const tabs = [["kommend", "Kommend"], ["monat", "Monat"], ["vergangen", "Vergangen"], ["abo", "Abonnieren"]];
+  if(!tabs.some(t => t[0] === view)) view = "kommend";
+  app.innerHTML = `
+    <div class="topbar">
+      <span class="crumbs"><a href="../">MST Ermatingen</a> / Kalender</span>
+      <div id="userbar">${viewer.vorstand
+        ? `<span class="user-chip"><span class="admin-tag">${esc(MST.ROLE_LABEL[viewer.role] || "Vorstand")}</span>${esc(viewer.name)}</span><button class="link-btn" id="logoutBtn" type="button">Abmelden</button>`
+        : '<button class="link-btn" id="loginBtn" type="button">Vorstand-Login</button>'}</div>
+    </div>
+    <div class="hero">
+      <div class="hero-left">
+        <img class="hero-logo" src="../assets/logo.png" alt="">
+        <div class="hero-titles">
+          <span class="eyebrow">Vereinskalender</span>
+          <h1 class="hero-title">Kalender</h1>
+          <p class="hero-sub">Immer gleich wie der Google Kalender «MST» – auch zum Abonnieren.</p>
+        </div>
+      </div>
+      <div class="hero-stats">
+        ${next ? `<div class="stat-chip"><span class="num">${esc(KAL.countdown(next))}</span><span class="lbl">${esc(next.title)}</span></div>` : ""}
+        <div class="stat-chip"><span class="num">${events.filter(e => KAL.firstDay(e).startsWith(thisYear)).length}</span><span class="lbl">Termine ${thisYear}</span></div>
+      </div>
+    </div>
+    <div class="court-line"></div>
+    <nav class="tabbar">${tabs.map(([k, l]) => `<button class="tabbtn ${view === k ? "active" : ""}" data-tab="${k}">${l}</button>`).join("")}</nav>
+    <div class="toolbar">
+      ${canEdit() ? '<button class="btn-primary" id="addBtn" type="button">+ Termin</button>' : "<span></span>"}
+      <span class="sync" id="sync"></span>
+    </div>
+    ${!KAL.ready() ? `<div class="notice">Der Kalender wird gerade mit Google verbunden – bald sind hier alle Termine zu sehen.</div>` : ""}
+    ${syncState === "err" && KAL.ready() ? `<div class="notice red">Google Kalender gerade nicht erreichbar${events.length ? " – angezeigt wird der letzte Stand" : ""}. ${esc(syncError)}</div>` : ""}
+    <section class="panel" id="content"></section>`;
+  app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { location.hash = b.dataset.tab; });
+  const lb = document.getElementById("loginBtn");
+  if(lb) lb.onclick = showLogin;
+  const lo = document.getElementById("logoutBtn");
+  if(lo) lo.onclick = () => MST.logout();
+  const ab = document.getElementById("addBtn");
+  if(ab) ab.onclick = () => openEdit(null, view === "monat" && month !== KAL.today().slice(0, 7) ? month + "-01" : KAL.today());
+  renderSync();
+
+  const content = document.getElementById("content");
+  if(view === "kommend") content.innerHTML = listHtml(upcoming, next, "Keine kommenden Termine.");
+  else if(view === "vergangen") content.innerHTML = pastHtml();
+  else if(view === "monat") content.innerHTML = monthHtml();
+  else content.innerHTML = aboHtml();
+  bindContent(content);
+}
+
+/* Login nur für den Vorstand (Mitglieder brauchen hier keines) – mit «Abbrechen» */
+function showLogin(){
+  MST.showLogin("", true);
+  const gate = document.getElementById("gate");
+  const sw = document.getElementById("switchLogin");
+  if(sw) sw.remove();
+  gate.querySelector(".login-card").insertAdjacentHTML("beforeend", '<button class="link-btn" id="cancelLogin" type="button">← zurück zum Kalender</button>');
+  document.getElementById("cancelLogin").onclick = () => { gate.hidden = true; gate.innerHTML = ""; };
+}
+
+function renderSync(){
+  const el = document.getElementById("sync");
+  if(!el || !KAL.ready()) return;
+  el.className = "sync " + (syncState === "busy" ? "busy" : syncState === "err" ? "err" : "");
+  const t = loadedAt ? new Date(loadedAt).toLocaleTimeString("de-CH", { hour:"2-digit", minute:"2-digit" }) : "";
+  el.innerHTML = `<span class="dot"></span>${syncState === "busy" ? "synchronisiere …" : t ? "Stand " + t : ""}<button type="button" id="reloadBtn" title="Neu aus Google laden">↻</button>`;
+  document.getElementById("reloadBtn").onclick = () => refresh(true);
+}
+
+function evRow(e, next){
+  const a = KAL.firstDay(e), d = KAL.keyDate(a), k = KAL.kind(e);
+  const meta = [e.allDay ? (a === KAL.lastDay(e) ? "ganztägig" : `bis ${KAL.fmtDay(KAL.lastDay(e))}`) : `${KAL.time(e.start)}–${KAL.time(e.end)}`];
+  return `<button class="ev ${next && next.key === e.key ? "next" : ""} ${KAL.isPast(e) ? "past" : ""}" data-key="${esc(e.key)}" type="button">
+    <span class="ev-date"><span class="wd">${d.toLocaleDateString("de-CH", { weekday:"short" })}</span><span class="d">${d.getDate()}</span><span class="m">${d.toLocaleDateString("de-CH", { month:"short" })}</span></span>
+    <span><span class="ev-title">${k.icon} ${esc(e.title)}${e.recurring ? ' <span class="tag">Serie</span>' : ""}</span>
+      <span class="ev-meta">${esc(meta[0])}${e.location ? `<span class="loc">${esc(e.location)}</span>` : ""}</span></span>
+    <span class="ev-side">${KAL.isPast(e) ? "" : esc(KAL.countdown(e))}</span>
+  </button>`;
+}
+function listHtml(list, next, emptyText){
+  if(!list.length) return `<p class="empty">${KAL.ready() ? emptyText : ""}</p>`;
+  let html = "", cur = "";
+  list.forEach(e => {
+    const m = KAL.firstDay(e).slice(0, 7);
+    if(m !== cur){ cur = m; html += `<div class="month-head">${MONTHS[+m.slice(5) - 1]} ${m.slice(0, 4)}</div>`; }
+    html += evRow(e, next);
+  });
+  return html;
+}
+function pastHtml(){
+  const past = events.filter(e => KAL.isPast(e)).reverse();
+  if(!past.length) return `<p class="empty">Noch keine vergangenen Termine.</p>`;
+  const years = [...new Set(past.map(e => KAL.firstDay(e).slice(0, 4)))];
+  return years.map((y, i) => {
+    const list = past.filter(e => KAL.firstDay(e).startsWith(y));
+    return `<details class="year" ${i === 0 ? "open" : ""}><summary>${y} <small>${list.length} Termine</small></summary>${list.map(e => evRow(e)).join("")}</details>`;
+  }).join("");
+}
+
+/* Monatsraster Mo–So; mehrtägige Termine erscheinen an jedem Tag */
+function monthHtml(){
+  const [y, m] = month.split("-").map(Number);
+  const first = new Date(y, m - 1, 1, 12);
+  let k = KAL.addDays(KAL.dayKey(first), -((first.getDay() + 6) % 7));
+  const today = KAL.today();
+  let cells = "";
+  for(let i = 0; i < 42; i++){
+    const dayEvents = events.filter(e => KAL.firstDay(e) <= k && KAL.lastDay(e) >= k);
+    const out = k.slice(0, 7) !== month;
+    if(i === 35 && out) break; // 6. Woche nur wenn nötig
+    cells += `<div class="cell ${out ? "out" : ""} ${k === today ? "today" : ""} ${canEdit() ? "add" : ""}" data-day="${k}">
+      <span class="n">${+k.slice(8)}</span>
+      ${dayEvents.map(e => `<button class="chip ${e.allDay ? "" : "timed"} ${KAL.firstDay(e) !== k ? "cont" : ""}" data-key="${esc(e.key)}" type="button" title="${esc(e.title)}">${e.allDay ? "" : KAL.time(e.start) + " "}${esc(e.title)}</button>`).join("")}
+    </div>`;
+    k = KAL.addDays(k, 1);
+  }
+  const inMonth = events.filter(e => KAL.firstDay(e) <= `${month}-31` && KAL.lastDay(e) >= `${month}-01`);
+  return `<div class="mnav">
+      <h2>${MONTHS[m - 1]} ${y}</h2>
+      <button class="btn-ghost" data-month="-1" type="button" aria-label="Vormonat">‹</button>
+      <button class="btn-ghost" data-month="0" type="button">Heute</button>
+      <button class="btn-ghost" data-month="1" type="button" aria-label="Nächster Monat">›</button>
+    </div>
+    <div class="grid">${["Mo","Di","Mi","Do","Fr","Sa","So"].map(d => `<div class="wdh">${d}</div>`).join("")}${cells}</div>
+    <div class="day-list">${inMonth.length ? inMonth.map(e => evRow(e)).join("") : '<p class="empty">Keine Termine in diesem Monat.</p>'}</div>`;
+}
+
+function aboHtml(){
+  if(!KAL.ready()) return `<p class="empty">Das Abo gibt es, sobald der Kalender verbunden ist.</p>`;
+  return `<div class="sub-grid">
+    <div class="card sub-card">
+      <h3>📱 iPhone, iPad, Mac</h3>
+      <p>Ein Tipp – der Kalender erscheint in der Kalender-App und bleibt automatisch aktuell.</p>
+      <a class="btn-primary" href="${esc(KAL.webcalUrl())}">Abonnieren</a>
+    </div>
+    <div class="card sub-card">
+      <h3>🗓️ Google Kalender / Android</h3>
+      <p>Öffnet Google Kalender mit «Kalender hinzufügen». Auf Android danach in der Kalender-App unter «Konten» den MST-Kalender einschalten.</p>
+      <a class="btn-primary" href="${esc(KAL.googleUrl())}" target="_blank" rel="noopener">In Google hinzufügen</a>
+    </div>
+    <div class="card sub-card">
+      <h3>💻 Outlook & andere</h3>
+      <p>In Outlook: «Kalender hinzufügen → Aus dem Internet abonnieren» und diesen Link einfügen.</p>
+      <div class="feed-url" id="feedUrl">${esc(KAL.feedUrl())}</div>
+      <button class="btn-ghost" id="copyBtn" type="button">Link kopieren</button>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <h3>Gut zu wissen</h3>
+    <ol class="steps">
+      <li>Abonnierte Kalender sind nur zum Lesen – neue Termine trägt der Vorstand hier oder direkt im Google Kalender «MST» ein.</li>
+      <li>Apple aktualisiert etwa stündlich, Google Kalender je nach Laune alle paar Stunden. Auf dieser Seite siehst du immer sofort den neusten Stand.</li>
+      <li>Wer schon Zugriff auf den Google Kalender «MST» hat, braucht kein Abo – dort ist alles live.</li>
+    </ol>
+  </div>`;
+}
+
+function bindContent(root){
+  root.querySelectorAll("[data-key]").forEach(b => b.onclick = (ev) => { ev.stopPropagation(); openDetail(b.dataset.key); });
+  root.querySelectorAll("[data-month]").forEach(b => b.onclick = () => {
+    const d = +b.dataset.month;
+    if(!d) month = KAL.today().slice(0, 7);
+    else { const [y, m] = month.split("-").map(Number); const t = new Date(y, m - 1 + d, 1); month = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}`; }
+    render();
+  });
+  if(canEdit()) root.querySelectorAll(".cell.add").forEach(c => c.onclick = () => openEdit(null, c.dataset.day));
+  const cp = document.getElementById("copyBtn");
+  if(cp) cp.onclick = async () => {
+    try{ await navigator.clipboard.writeText(KAL.feedUrl()); cp.textContent = "Kopiert ✓"; }
+    catch(e){ const r = document.createRange(); r.selectNodeContents(document.getElementById("feedUrl")); getSelection().removeAllRanges(); getSelection().addRange(r); cp.textContent = "Markiert – jetzt kopieren"; }
+  };
+}
+
+/* ---------- Dialoge ---------- */
+function openDetail(key){
+  const e = events.find(x => x.key === key);
+  if(!e) return;
+  const k = KAL.kind(e);
+  dlg.innerHTML = `
+    <h3>${k.icon} ${esc(e.title)}</h3>
+    <p class="dlg-when">${esc(KAL.when(e, true))}${KAL.isPast(e) ? "" : " · " + esc(KAL.countdown(e))}</p>
+    <div class="dlg-body">
+      ${e.location ? `<p>📍 <a href="${esc(KAL.mapsUrl(e.location))}" target="_blank" rel="noopener">${esc(e.location)}</a></p>` : ""}
+      ${e.description ? `<p>${KAL.linkify(e.description)}</p>` : ""}
+      ${k.link ? `<p><a href="../${k.link}">Zum Bereich ${esc(k.link.replace("/", "").replace(/^\w/, c => c.toUpperCase()))} →</a></p>` : ""}
+      ${e.recurring ? `<p class="muted" style="font-size:12.5px">Serientermin – ändern nur direkt im Google Kalender.</p>` : ""}
+      ${viewer.vorstand && e.by ? `<p class="muted" style="font-size:12px">Zuletzt auf der Seite bearbeitet von ${esc(e.by)}</p>` : ""}
+    </div>
+    <div class="dlg-actions">
+      ${canEdit() && !e.recurring ? '<button class="btn-ghost" id="editBtn" type="button">Bearbeiten</button>' : ""}
+      <div class="right"><button class="btn-primary" id="closeBtn" type="button">Schliessen</button></div>
+    </div>`;
+  dlg.querySelector("#closeBtn").onclick = () => dlg.close();
+  const eb = dlg.querySelector("#editBtn");
+  if(eb) eb.onclick = () => openEdit(e);
+  if(!dlg.open) dlg.showModal();
+}
+
+const PRESETS = ["Minispieltag", "Afterworkbar", "GV MST", "Padel", "Skitag MST", "Winterevent MST", "Vorstandssitzung"];
+function openEdit(e, day){
+  const isNew = !e;
+  const startDate = e ? KAL.firstDay(e) : day, endDate = e ? KAL.lastDay(e) : day;
+  const allDay = e ? e.allDay : true;
+  dlg.innerHTML = `
+    <h3>${isNew ? "Neuer Termin" : "Termin bearbeiten"}</h3>
+    <p class="dlg-sub">Wird sofort im Google Kalender «MST» gespeichert.</p>
+    <form id="evForm">
+      ${isNew ? `<div class="presets">${PRESETS.map(p => `<button class="btn-small" type="button" data-preset="${esc(p)}">${esc(p)}</button>`).join("")}</div>` : ""}
+      <label>Titel<input name="title" required maxlength="120" value="${esc(e ? e.title : "")}"></label>
+      <label class="check"><input type="checkbox" name="allDay" ${allDay ? "checked" : ""}> Ganztägig</label>
+      <div class="row2">
+        <label>Von<input name="startDate" type="date" required value="${esc(startDate)}"></label>
+        <label>Bis<input name="endDate" type="date" required value="${esc(endDate)}"></label>
+      </div>
+      <div class="row2" id="times" ${allDay ? "hidden" : ""}>
+        <label>Beginn<input name="startTime" type="time" value="${esc(e && !e.allDay ? KAL.time(e.start) : "19:00")}"></label>
+        <label>Ende<input name="endTime" type="time" value="${esc(e && !e.allDay ? KAL.time(e.end) : "21:00")}"></label>
+      </div>
+      <label>Ort<input name="location" maxlength="200" value="${esc(e ? e.location : "")}" placeholder="z. B. Hörnle Konstanz"></label>
+      <label>Beschreibung<textarea name="description" rows="3" maxlength="4000">${esc(e ? e.description : "")}</textarea></label>
+      <p class="dlg-msg" id="dlgMsg"></p>
+      <div class="dlg-actions">
+        ${isNew ? "" : '<button class="btn-danger" id="delBtn" type="button">Löschen</button>'}
+        <div class="right">
+          <button class="btn-ghost" id="cancelBtn" type="button">Abbrechen</button>
+          <button class="btn-primary" type="submit">Speichern</button>
+        </div>
+      </div>
+    </form>`;
+  const f = dlg.querySelector("#evForm"), msg = dlg.querySelector("#dlgMsg");
+  dlg.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => { f.title.value = b.dataset.preset; f.title.focus(); });
+  f.allDay.onchange = () => { dlg.querySelector("#times").hidden = f.allDay.checked; };
+  f.startDate.onchange = () => { if(!f.endDate.value || f.endDate.value < f.startDate.value) f.endDate.value = f.startDate.value; };
+  dlg.querySelector("#cancelBtn").onclick = () => dlg.close();
+  const busy = (on, text) => { f.querySelectorAll("button").forEach(b => b.disabled = on); msg.style.color = on ? "var(--muted)" : ""; msg.textContent = text || ""; };
+  f.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const data = {
+      id:e ? e.id : null, title:f.title.value.trim(), allDay:f.allDay.checked,
+      startDate:f.startDate.value, endDate:f.endDate.value < f.startDate.value ? f.startDate.value : f.endDate.value,
+      startTime:f.startTime.value, endTime:f.endTime.value,
+      location:f.location.value.trim(), description:f.description.value.trim()
+    };
+    if(!data.allDay && data.startDate === data.endDate && data.endTime && data.endTime <= data.startTime){ msg.textContent = "Ende liegt vor dem Beginn."; return; }
+    busy(true, "speichere im Google Kalender …");
+    try{
+      const res = await KAL.write("save", data, viewer.name);
+      events = res.events; loadedAt = Date.now(); syncState = "ok";
+      MST.log("kalender", `Termin ${isNew ? "eingetragen" : "geändert"}: ${data.title} (${KAL.when(res.event, true)})`);
+      dlg.close();
+      if(view === "monat") month = data.startDate.slice(0, 7);
+      render();
+    }catch(err){ console.error(err); busy(false); msg.textContent = err.message || "Speichern fehlgeschlagen."; }
+  };
+  const del = dlg.querySelector("#delBtn");
+  if(del) del.onclick = async () => {
+    if(!confirm(`«${e.title}» wirklich löschen? Der Termin verschwindet auch im Google Kalender.`)) return;
+    busy(true, "lösche …");
+    try{
+      const res = await KAL.write("delete", { id:e.id }, viewer.name);
+      events = res.events; loadedAt = Date.now();
+      MST.log("kalender", `Termin gelöscht: ${e.title} (${KAL.when(e, true)})`);
+      dlg.close(); render();
+    }catch(err){ console.error(err); busy(false); msg.textContent = err.message || "Löschen fehlgeschlagen."; }
+  };
+  if(!dlg.open) dlg.showModal();
+  if(isNew) f.title.focus();
+}
+dlg.addEventListener("click", ev => { if(ev.target === dlg) dlg.close(); });
+</script>
+</body>
+</html>

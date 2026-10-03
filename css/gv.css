@@ -1,0 +1,53 @@
+/* GV- und Finanzen-Seite: Bildschirm-Stile (Tabellen, Kennzahlen, Formulare) */
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr)); gap:12px; align-items:start;}
+.grid2 .card + .card{margin-top:0;}
+.stack > .card + .card{margin-top:12px;}
+.toolbar-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:0 0 14px;}
+.toolbar-row .spacer{flex:1;}
+table.lst{border-collapse:collapse; width:100%; font-size:13px;}
+table.lst th, table.lst td{padding:6px 7px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle;}
+table.lst th{font-family:var(--font-display); font-weight:400; letter-spacing:.04em; font-size:13px; color:var(--muted);}
+table.lst td.num, table.lst th.num{text-align:right; font-family:var(--font-mono); white-space:nowrap;}
+table.lst input, table.lst select{padding:5px 7px; font-size:13px; width:100%;}
+table.lst tr.total td{border-top:2px solid var(--line-strong); font-weight:700;}
+.pill{font-family:var(--font-mono); font-size:10.5px; border:1px solid var(--line-strong); border-radius:12px; padding:2px 8px; color:var(--muted); white-space:nowrap;}
+.pill.ok{color:var(--green); border-color:rgba(95,212,138,.45);}
+.pill.warn{color:var(--yellow); border-color:var(--yellow);}
+.kpi-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:12px;}
+.kpi{background:var(--bg); border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 12px;}
+.kpi .v{font-family:var(--font-mono); font-size:18px; font-weight:700; color:var(--yellow);}
+.kpi .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
+.tk-edit{border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px; margin-bottom:10px; background:var(--bg);}
+.tk-edit .row{display:flex; gap:8px; align-items:center;}
+.tk-edit .nr{font-family:var(--font-display); font-size:24px; color:var(--yellow); width:28px; text-align:center;}
+.tk-edit input.ti{flex:1; font-weight:600;}
+.tk-edit textarea{width:100%; min-height:90px; margin-top:8px; font-size:13px; line-height:1.5; font-family:var(--font-body);}
+.tk-edit .opts{display:flex; gap:14px; flex-wrap:wrap; margin-top:6px;}
+.tk-edit .opts label{flex-direction:row; align-items:center; gap:6px; text-transform:none; letter-spacing:0; font-size:12.5px;}
+.tokens{font-size:11.5px; color:var(--muted-2); line-height:1.8;}
+.tokens code{font-family:var(--font-mono); color:var(--yellow); background:var(--bg); padding:0 4px; border-radius:4px;}
+.antrag{border-bottom:1px solid var(--line); padding:9px 0; font-size:13.5px;}
+.antrag .meta{font-size:11.5px; color:var(--muted);}
+.prot-tk{border:1px solid var(--line); border-radius:var(--radius-sm); padding:12px; margin-bottom:10px; background:var(--bg);}
+.prot-tk h4{font-family:var(--font-display); font-weight:400; font-size:20px; letter-spacing:.03em; margin:0 0 6px;}
+.prot-tk h4 span{color:var(--yellow); margin-right:8px;}
+.prot-tk textarea{width:100%; min-height:70px; font-family:var(--font-body); font-size:13.5px; line-height:1.5;}
+.prot-tk .q{display:grid; grid-template-columns:minmax(120px,1fr) 2fr; gap:8px; align-items:start; margin:6px 0; font-size:13px;}
+.prot-tk .q textarea{min-height:42px;}
+.vote{display:flex; gap:8px; flex-wrap:wrap; align-items:end; margin:8px 0;}
+.vote input{width:70px;}
+.att{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr)); gap:6px;}
+.att .p{display:flex; justify-content:space-between; align-items:center; gap:6px; border:1px solid var(--line); border-radius:6px; padding:5px 8px; font-size:13px;}
+.att .seg2{display:flex; gap:4px;}
+.att .seg2 button{padding:3px 8px; font-size:11.5px;}
+.save-note{font-size:11.5px; color:var(--muted-2); font-family:var(--font-mono);}
+.muted{color:var(--muted);} .small{font-size:12px;}
+.paper{overflow:hidden; padding:4px 0;}
+.paper .page{box-shadow:0 6px 30px rgba(0,0,0,.45); margin:0 auto 16px;}
+.pages canvas{display:block; width:100%; max-width:860px; margin:0 auto 12px; border-radius:6px; background:#fff;}
+.upload{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; align-items:end;}
+.form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; align-items:end;}
+.form-grid input, .form-grid select{width:100%;}
+/* bezahlte Jahresbeiträge: Zeile grün */
+table.lst tr.paid td{background:rgba(95,212,138,.28); border-bottom-color:rgba(95,212,138,.45);}
+table.lst tr.paid td:first-child{box-shadow:inset 4px 0 0 var(--green);}

@@ -4,12 +4,16 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
 
 - `index.html` – Startseite mit Kacheln + für den Admin: Mitglieder (Alias, Eintritt, Austritt → «Ehemalige», endgültig löschen),
   Vorstand-Logins (Rollen) und das eingeklappte Änderungsprotokoll
-- `gv/` + `js/gv-app.js` – GV: Traktanden (Platzhalter wie {vermoegen}, Vorschläge der Mitglieder), Mitglieder & Jahresbeiträge
-  (Rabatt aus dem AWB-Einsatzplan), Finanzen (Kontobewegungen, AWB-Abrechnung), Protokoll des Aktuars, Jahresrückblick;
-  druckt Übersicht und Protokoll im Stil der GV-Übersicht 2026 (Calibri, A4). Alte PDFs im Reiter «PDF».
+- `gv/` + `js/gv-app.js` – GV: Traktanden (Platzhalter wie {vermoegen}, Vorschläge der Mitglieder), Mitglieder (Mutationen,
+  Vorstand), Protokoll des Aktuars, Jahresrückblick; druckt Übersicht (inkl. Finanzseiten) und Protokoll im Stil der
+  GV-Übersicht 2026 (Calibri, A4). Alte PDFs im Reiter «PDF».
+- `finanzen/` – eigene Kachel, gleiche App `js/gv-app.js` mit `<div id="app" data-mode="finanzen">`: Jahresbeiträge
+  (Rabatt aus dem AWB-Einsatzplan; bezahlte Zeilen grün), Kontobewegungen mit Belegen, AWB-Abrechnung. Jahr = Vereinsjahr,
+  das mit der GV <jahr> endet (neues Vereinsjahr = auf der GV-Seite unter Einstellungen die nächste GV anlegen).
   Kassier: Beitrag per WhatsApp anfordern (einzeln über wa.me mit Handynummer aus `contacts/<memberId>` – nur Vorstand
   lesbar – oder Sammelnachricht), danach Status «Twint angefordert»; Belege (Foto/PDF, Fotos auf 1600 px verkleinert)
   hängen an der Buchung: `finance/<jahr>/belege/<buchung>_<n>` (Base64-Stücke), Metadaten in `bookings/<id>.beleg`.
+- `css/gv.css` – gemeinsame Bildschirm-Stile von GV und Finanzen (Druckstile bleiben in `gv/index.html`)
 - `spieltag/` – Ermatinger Minispieltag, **öffentlich** (Zuschauer ohne Login): Live-Rangliste, Spiele, Historie 2020–…;
   als Admin: Spiele wechseln/einstellen (Einzel, 2er, 3er …, Modus, Punkte), auslosen, Teams anpassen, Resultate eintragen
 - `spieltag/organisation/` – nur Admin: Teilnehmende des Jahres, Gäste, neue Vereinsmitglieder (inkl. Login),
@@ -62,7 +66,7 @@ Bis 2.10.2026 lief Padel auf Netlify (mst-padel.netlify.app, Repo `MST-Ermatinge
 - Die alte Seite minispieltag.web.app (Sammlungen draws/persons/results/schedules) bleibt unberührt.
 
 ## Testen ohne Login
-`private/gv-harness.html?rolle=admin|kassier|aktuar|mitglied` (bzw. `&seite=index`) lädt eine lokale Kopie der Daten
+`private/gv-harness.html?rolle=admin|kassier|aktuar|mitglied` (bzw. `&seite=index` oder `&seite=finanzen`) lädt eine lokale Kopie der Daten
 (`node private/dump-gv.mjs`) und simuliert das Login – nichts wird gespeichert. `&druck=uebersicht|protokoll` füllt die
 Druckansicht (für Chrome headless `--print-to-pdf`).
 

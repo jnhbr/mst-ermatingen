@@ -9,8 +9,11 @@
      finance/<jahr>                Vereinsjahr (endet mit der GV <jahr>) { vjStart, vjEnd, opening, openingCash, cash, awb }
      finance/<jahr>/bookings/<id>  Kontobewegungen { date, text, cat, out, in }
      finance/<jahr>/fees/<m..>     Jahresbeitrag <jahr> { status:offen|angefordert|bezahlt|erlassen, paidAt, note, awb, aufbau, amount }
-   Rollen: Vorstand (E-Mail-Login) bearbeitet GV, Kassier Finanzen/Beiträge, Aktuar Protokoll. */
-let me = null, Y = null, years = [], tab = "uebersicht";
+   Rollen: Vorstand (E-Mail-Login) bearbeitet GV, Kassier Finanzen/Beiträge, Aktuar Protokoll.
+   Läuft auf zwei Seiten: gv/ (Traktanden, Mitglieder, Protokoll, Druck) und finanzen/ (<div id="app" data-mode="finanzen">:
+   Jahresbeiträge, Kontobewegungen, AWB-Abrechnung). */
+const MODE = document.getElementById("app").dataset.mode === "finanzen" ? "finanzen" : "gv";
+let me = null, Y = null, years = [], tab = MODE === "finanzen" ? "beitraege" : "uebersicht";
 let verein = {}, gv = null, prot = {}, antraege = [], fin = null, bookings = [], fees = {}, shifts = [], histY = null, beerY = [];
 let unsub = [], saveTimer = null, saveState = "";
 let contacts = {}, contactsWatch = null;   // Handynummern (nur Vorstand)
@@ -168,25 +171,33 @@ const qPart = t => { const [a, ...rest] = t.split("→"); return [a.trim(), rest
 function draw(){
   const app = document.getElementById("app");
   if(!me) return;
-  const tabs = [["uebersicht", "Übersicht & Druck"], ["traktanden", "Traktanden"], ["mitglieder", "Mitglieder & Beiträge"], ["finanzen", "Finanzen"], ["protokoll", "Protokoll"]];
-  if(gv && gv.chunks) tabs.push(["archiv", "PDF"]);
-  if(canGV()) tabs.push(["einstellungen", "Einstellungen"]);
+  const fm = MODE === "finanzen";
+  const tabs = fm ? [["beitraege", "Jahresbeiträge"], ["konto", "Kontobewegungen & AWB"]]
+    : [["uebersicht", "Übersicht & Druck"], ["traktanden", "Traktanden"], ["mitglieder", "Mitglieder"], ["protokoll", "Protokoll"]];
+  if(!fm && gv && gv.chunks) tabs.push(["archiv", "PDF"]);
+  if(!fm && canGV()) tabs.push(["einstellungen", "Einstellungen"]);
+  const T = Y ? feeTotals() : null;
+  const stats = !Y ? "" : fm ? `
+        <div class="stat-chip"><span class="num">${fin ? esc(CHF(finance().total).replace("CHF ", "")) : "–"}</span><span class="lbl">Vermögen CHF</span></div>
+        <div class="stat-chip"><span class="num">${feeList().filter(x => !x.fee.vorstand && x.fee.amount > 0 && x.st === "bezahlt").length}/${T.payers}</span><span class="lbl">Beiträge bezahlt</span></div>
+        <div class="stat-chip"><span class="num">${esc(CHF(T.open).replace("CHF ", ""))}</span><span class="lbl">offen CHF</span></div>` : `
+        <div class="stat-chip"><span class="num">${members().length}</span><span class="lbl">Mitglieder</span></div>
+        ${fin ? `<div class="stat-chip"><span class="num">${esc(CHF(finance().total).replace("CHF ", ""))}</span><span class="lbl">Vermögen CHF</span></div>` : ""}
+        <div class="stat-chip"><span class="num">${antraege.filter(a => a.status === "neu").length}</span><span class="lbl">neue Vorschläge</span></div>`;
   app.innerHTML = `
-    <div class="topbar"><span class="crumbs"><a href="../">MST Ermatingen</a> / GV</span><div id="userbar"></div></div>
+    <div class="topbar"><span class="crumbs"><a href="../">MST Ermatingen</a> / ${fm ? "Finanzen" : "GV"}</span><div id="userbar"></div></div>
     <div class="hero">
       <div class="hero-left">
         <img class="hero-logo" src="../assets/logo.png" alt="">
         <div class="hero-titles">
-          <span class="eyebrow">${Y ? `${edition()}. Generalversammlung · ${esc(gvWhen())}` : "Generalversammlung"}</span>
-          <h1 class="hero-title">GV ${esc(Y || "")}</h1>
-          <p class="hero-sub">Traktanden, Finanzen, Mitglieder und Protokoll – nur für Mitglieder</p>
-          ${years.length > 1 ? `<select class="season-select" id="yearSelect">${years.slice().reverse().map(y => `<option value="${y}" ${y === Y ? "selected" : ""}>GV ${y}</option>`).join("")}</select>` : ""}
+          <span class="eyebrow">${fm ? (Y ? `Vereinsjahr ${dCH(vjStart())} – ${dCH(vjEnd())} · Kassier ${esc(memberName(V().vorstand.kassier))}` : "Vereinsjahr")
+            : Y ? `${edition()}. Generalversammlung · ${esc(gvWhen())}` : "Generalversammlung"}</span>
+          <h1 class="hero-title">${fm ? `Finanzen ${Y ? esc(vjLabel()) : ""}` : `GV ${esc(Y || "")}`}</h1>
+          <p class="hero-sub">${fm ? "Jahresbeiträge, Kontobewegungen und Afterworkbar-Abrechnung – nur für Mitglieder" : "Traktanden, Mitglieder und Protokoll – nur für Mitglieder"}</p>
+          ${years.length > 1 ? `<select class="season-select" id="yearSelect">${years.slice().reverse().map(y => `<option value="${y}" ${y === Y ? "selected" : ""}>${fm ? `Vereinsjahr ${parseInt(y, 10) - 1}/${y.slice(2)}` : `GV ${y}`}</option>`).join("")}</select>` : ""}
         </div>
       </div>
-      ${Y ? `<div class="hero-stats">
-        <div class="stat-chip"><span class="num">${members().length}</span><span class="lbl">Mitglieder</span></div>
-        ${fin ? `<div class="stat-chip"><span class="num">${esc(CHF(finance().total).replace("CHF ", ""))}</span><span class="lbl">Vermögen CHF</span></div>` : ""}
-        <div class="stat-chip"><span class="num">${antraege.filter(a => a.status === "neu").length}</span><span class="lbl">neue Vorschläge</span></div>
+      ${Y ? `<div class="hero-stats">${stats}
       </div>` : ""}
     </div>
     <div class="court-line"></div>
@@ -197,8 +208,10 @@ function draw(){
   const ys = document.getElementById("yearSelect");
   if(ys) ys.onchange = () => openYear(ys.value);
   const c = document.getElementById("content");
-  if(!Y || !gv){ c.innerHTML = `<div class="card"><p class="muted">${Y ? "lade …" : "Noch keine GV angelegt."}</p>${canGV() && !Y ? '<button class="btn-primary" id="firstGV">GV anlegen</button>' : ""}</div>`; return; }
-  ({ uebersicht:viewOverview, traktanden:viewTraktanden, mitglieder:viewMembers, finanzen:viewFinance, protokoll:viewProtocol, archiv:viewArchive, einstellungen:viewSettings }[tab] || viewOverview)(c);
+  if(!Y || !gv){ c.innerHTML = `<div class="card"><p class="muted">${Y ? "lade …" : fm ? 'Noch kein Vereinsjahr – zuerst auf der <a href="../gv/">GV-Seite</a> eine GV anlegen.' : "Noch keine GV angelegt."}</p>${canGV() && !Y && !fm ? '<button class="btn-primary" id="firstGV">GV anlegen</button>' : ""}</div>`; return; }
+  const views = fm ? { beitraege:viewFees, konto:viewFinance }
+    : { uebersicht:viewOverview, traktanden:viewTraktanden, mitglieder:viewMembers, protokoll:viewProtocol, archiv:viewArchive, einstellungen:viewSettings };
+  (views[tab] || Object.values(views)[0])(c);
 }
 function scalePages(){
   document.querySelectorAll(".paper").forEach(p => {
@@ -473,9 +486,39 @@ async function saveTk(list){
   await db.collection("gv").doc(Y).set({ traktanden:list }, { merge:true });
 }
 
-/* =================== MITGLIEDER & BEITRÄGE =================== */
+/* =================== MITGLIEDER (GV) =================== */
 function viewMembers(c){
-  const fl = feeList(), T = feeTotals(), mu = mutations(), v = V();
+  const mu = mutations(), v = V(), fl = feeList();
+  c.innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi"><div class="v">${members().length}</div><div class="l">Mitglieder (${vorstandIds().length} Vorstand)</div></div>
+      <div class="kpi"><div class="v">${mu.in.length}</div><div class="l">Eintritte</div></div>
+      <div class="kpi"><div class="v">${mu.out.length}</div><div class="l">Austritte</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Mutationen Vereinsjahr ${esc(vjLabel())}</h3>
+        <p class="rule-note">Kommt automatisch aus der Mitgliederverwaltung (Eintritt/Austritt) auf der Startseite.</p>
+        <p><b>Eintritte:</b> ${mu.in.length ? mu.in.map(x => `${esc(x.m.name)} (${dCH(x.d)})`).join(", ") : "keine"}</p>
+        <p><b>Austritte:</b> ${mu.out.length ? mu.out.map(x => `${esc(x.m.name)} (${dCH(x.d)})`).join(", ") : "keine"}</p>
+        ${mu.late.length ? `<p><b>Nach der GV eingetreten (zahlen ${esc(CHFr(num(v.fee)))}):</b> ${mu.late.map(x => `${esc(x.m.name)} (${dCH(x.d)})`).join(", ")}</p>` : ""}
+        <p class="small muted">Freie Nummern: ${esc(vacancies())}</p>
+      </div>
+      <div class="card"><h3>Vorstand</h3>
+        <p>Präsident: <b>${esc(memberName(v.vorstand.praesident))}</b><br>Aktuar: <b>${esc(memberName(v.vorstand.aktuar))}</b><br>Kassier: <b>${esc(memberName(v.vorstand.kassier))}</b>${v.twint ? ` (Twint ${esc(v.twint)})` : ""}</p>
+        <p class="rule-note" style="margin:10px 0 0">Jahresbeiträge und Kontobewegungen: <a href="../finanzen/${Y ? "?jahr=" + esc(Y) : ""}">Finanzen →</a></p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px"><h3>Mitgliederliste</h3>
+      <div class="tbl-scroll"><table class="lst"><thead><tr><th>Nr.</th><th>Alias</th><th>Name</th><th>AWB</th><th>Auf-/Abbau</th></tr></thead><tbody>
+      ${fl.map(x => `<tr><td>${x.id.slice(1)}</td><td><b>${esc(x.m.alias || x.m.short || "")}</b></td><td>${esc(x.m.name)}${x.fee.vorstand ? ' <span class="small muted">Vorstand</span>' : ""}</td>
+        <td>${x.h.awb ? "✓" : "–"}</td><td>${x.h.aufbau ? "✓" : "–"}</td></tr>`).join("")}
+      </tbody></table></div>
+    </div>`;
+}
+
+/* =================== JAHRESBEITRÄGE (Finanzen) =================== */
+function viewFees(c){
+  const fl = feeList(), T = feeTotals(), v = V();
   const edit = canFin();
   const stLabel = { offen:"offen", angefordert:"Twint angefordert", bezahlt:"bezahlt", erlassen:"erlassen" };
   c.innerHTML = `
@@ -492,7 +535,7 @@ function viewMembers(c){
         <button class="btn-primary" id="groupMsg">💬 Sammelnachricht für den Gruppenchat</button>
         <span class="small muted">💬 pro Zeile = WhatsApp an die Person (mit Handynummer direkt, sonst Kontakt auswählen). Danach steht «Twint angefordert».</span></div>` : ""}
       <div class="tbl-scroll"><table class="lst"><thead><tr><th>Nr.</th><th>Alias</th><th>Name</th><th>AWB</th><th>Auf-/Abbau</th><th class="num">Beitrag</th><th>Status</th>${edit ? "<th>Handy</th><th></th><th>Bemerkung</th>" : ""}</tr></thead><tbody>
-      ${fl.map(x => `<tr data-m="${x.id}"><td>${x.id.slice(1)}</td><td><b>${esc(x.m.alias || x.m.short || "")}</b></td><td>${esc(x.m.name)}${x.fee.label && !x.fee.vorstand ? `<div class="small muted">${esc(x.fee.label)}</div>` : ""}</td>
+      ${fl.map(x => `<tr data-m="${x.id}" class="${!x.fee.vorstand && x.st === "bezahlt" ? "paid" : ""}"><td>${x.id.slice(1)}</td><td><b>${esc(x.m.alias || x.m.short || "")}</b></td><td>${esc(x.m.name)}${x.fee.label && !x.fee.vorstand ? `<div class="small muted">${esc(x.fee.label)}</div>` : ""}</td>
         <td>${edit && !x.fee.vorstand ? `<input type="checkbox" data-k="awb" ${x.h.awb ? "checked" : ""}>` : x.h.awb ? "✓" : "–"}</td>
         <td>${edit && !x.fee.vorstand ? `<input type="checkbox" data-k="aufbau" ${x.h.aufbau ? "checked" : ""}>` : x.h.aufbau ? "✓" : "–"}</td>
         <td class="num">${x.fee.vorstand ? '<span class="muted">Vorstand</span>' : esc(CHF(x.fee.amount))}</td>
@@ -503,18 +546,6 @@ function viewMembers(c){
           <td>${x.fee.vorstand ? "" : `<input data-k="note" value="${esc((fees[x.id] || {}).note || "")}" placeholder="z. B. per Twint">`}</td>` : ""}</tr>`).join("")}
       </tbody></table></div>
       ${edit ? `<div class="btn-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px"><button class="btn-small" id="reqAll">alle offenen als «Twint angefordert» markieren</button></div>` : ""}
-    </div>
-    <div class="grid2" style="margin-top:12px">
-      <div class="card"><h3>Mutationen Vereinsjahr ${esc(vjLabel())}</h3>
-        <p class="rule-note">Kommt automatisch aus der Mitgliederverwaltung (Eintritt/Austritt) auf der Startseite.</p>
-        <p><b>Eintritte:</b> ${mu.in.length ? mu.in.map(x => `${esc(x.m.name)} (${dCH(x.d)})`).join(", ") : "keine"}</p>
-        <p><b>Austritte:</b> ${mu.out.length ? mu.out.map(x => `${esc(x.m.name)} (${dCH(x.d)})`).join(", ") : "keine"}</p>
-        ${mu.late.length ? `<p><b>Nach der GV eingetreten (zahlen ${esc(CHFr(num(v.fee)))}):</b> ${mu.late.map(x => `${esc(x.m.name)} (${dCH(x.d)})`).join(", ")}</p>` : ""}
-        <p class="small muted">Freie Nummern: ${esc(vacancies())}</p>
-      </div>
-      <div class="card"><h3>Vorstand</h3>
-        <p>Präsident: <b>${esc(memberName(v.vorstand.praesident))}</b><br>Aktuar: <b>${esc(memberName(v.vorstand.aktuar))}</b><br>Kassier: <b>${esc(memberName(v.vorstand.kassier))}</b>${v.twint ? ` (Twint ${esc(v.twint)})` : ""}</p>
-      </div>
     </div>`;
   if(!edit) return;
   const ref = id => db.collection("finance").doc(Y).collection("fees").doc(id);
@@ -697,7 +728,7 @@ function viewFinance(c){
   document.getElementById("bookForm").onsubmit = async e => {
     e.preventDefault(); const t = e.target;
     const b = { date:t.date.value, text:t.text.value.trim(), cat:t.cat.value.trim(), out:num(t.out.value), in:num(t.in.value), at:Date.now(), by:me.id };
-    if((b.date > vjEnd() || b.date < vjStart()) && !confirm(`Das Datum liegt ausserhalb des Vereinsjahrs ${vjLabel()} (${dCH(vjStart())} – ${dCH(vjEnd())}). Für das neue Vereinsjahr zuerst unter «Einstellungen» die nächste GV anlegen. Trotzdem hier buchen?`)) return;
+    if((b.date > vjEnd() || b.date < vjStart()) && !confirm(`Das Datum liegt ausserhalb des Vereinsjahrs ${vjLabel()} (${dCH(vjStart())} – ${dCH(vjEnd())}). Für das neue Vereinsjahr zuerst auf der GV-Seite unter «Einstellungen» die nächste GV anlegen. Trotzdem hier buchen?`)) return;
     await fref.set({ vjStart:vjStart(), vjEnd:vjEnd() }, { merge:true });
     const file = t.beleg.files[0];
     const ref = await fref.collection("bookings").add(b);

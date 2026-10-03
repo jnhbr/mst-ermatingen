@@ -13,6 +13,7 @@
 let me = null, Y = null, years = [], tab = "uebersicht";
 let verein = {}, gv = null, prot = {}, antraege = [], fin = null, bookings = [], fees = {}, shifts = [], histY = null, beerY = [];
 let unsub = [], saveTimer = null, saveState = "";
+let contacts = {}, contactsWatch = null;   // Handynummern (nur Vorstand)
 const db2 = () => db;
 
 /* ---------- Hilfen ---------- */
@@ -39,6 +40,7 @@ const canProt = () => !!(me && me.aktuar);
 /* ---------- Start ---------- */
 MST.start(async user => {
   me = user;
+  if(me.vorstand) contactsWatch = db.collection("contacts").onSnapshot(s => { contacts = {}; s.docs.forEach(d => contacts[d.id] = d.data()); if(!isTyping()) draw(); }, () => {});
   db.collection("config").doc("verein").onSnapshot(d => { verein = d.exists ? d.data() : {}; draw(); });
   db.collection("gv").onSnapshot(s => {
     years = s.docs.map(d => d.id).filter(id => /^\d{4}$/.test(id)).sort();
@@ -486,14 +488,19 @@ function viewMembers(c){
     <div class="card">
       <h3>Jahresbeiträge ${esc(Y)}</h3>
       <p class="rule-note">Beitrag ${esc(CHFr(num(v.fee)))}, pro Helfereinsatz ${esc(CHFr(num(v.discount)))} Rabatt (AWB-Schicht/Sonderjob und Auf-/Abbau, aus dem Einsatzplan der Afterworkbar ${esc(Y)}); Vorstand befreit. Wer nach der GV eintritt, zahlt den vollen aktuellen Beitrag. ${edit ? "Häkchen bei AWB/Aufbau übersteuern den Einsatzplan." : ""}</p>
-      <div class="tbl-scroll"><table class="lst"><thead><tr><th>Nr.</th><th>Alias</th><th>Name</th><th>AWB</th><th>Auf-/Abbau</th><th class="num">Beitrag</th><th>Status</th>${edit ? "<th>Bemerkung</th>" : ""}</tr></thead><tbody>
+      ${edit ? `<div class="toolbar-row" style="margin:0 0 10px">
+        <button class="btn-primary" id="groupMsg">💬 Sammelnachricht für den Gruppenchat</button>
+        <span class="small muted">💬 pro Zeile = WhatsApp an die Person (mit Handynummer direkt, sonst Kontakt auswählen). Danach steht «Twint angefordert».</span></div>` : ""}
+      <div class="tbl-scroll"><table class="lst"><thead><tr><th>Nr.</th><th>Alias</th><th>Name</th><th>AWB</th><th>Auf-/Abbau</th><th class="num">Beitrag</th><th>Status</th>${edit ? "<th>Handy</th><th></th><th>Bemerkung</th>" : ""}</tr></thead><tbody>
       ${fl.map(x => `<tr data-m="${x.id}"><td>${x.id.slice(1)}</td><td><b>${esc(x.m.alias || x.m.short || "")}</b></td><td>${esc(x.m.name)}${x.fee.label && !x.fee.vorstand ? `<div class="small muted">${esc(x.fee.label)}</div>` : ""}</td>
         <td>${edit && !x.fee.vorstand ? `<input type="checkbox" data-k="awb" ${x.h.awb ? "checked" : ""}>` : x.h.awb ? "✓" : "–"}</td>
         <td>${edit && !x.fee.vorstand ? `<input type="checkbox" data-k="aufbau" ${x.h.aufbau ? "checked" : ""}>` : x.h.aufbau ? "✓" : "–"}</td>
         <td class="num">${x.fee.vorstand ? '<span class="muted">Vorstand</span>' : esc(CHF(x.fee.amount))}</td>
         <td>${x.fee.vorstand ? "" : edit ? `<select data-k="status">${Object.entries(stLabel).map(([k, l]) => `<option value="${k}" ${x.st === k ? "selected" : ""}>${l}</option>`).join("")}</select>`
           : `<span class="pill ${x.st === "bezahlt" ? "ok" : x.st === "angefordert" ? "warn" : ""}">${stLabel[x.st]}</span>`}${(fees[x.id] || {}).paidAt && x.st === "bezahlt" ? `<div class="small muted">${dCH(fees[x.id].paidAt)}</div>` : ""}</td>
-        ${edit ? `<td>${x.fee.vorstand ? "" : `<input data-k="note" value="${esc((fees[x.id] || {}).note || "")}" placeholder="z. B. per Twint">`}</td>` : ""}</tr>`).join("")}
+        ${edit ? `<td><input data-phone="${x.id}" value="${esc((contacts[x.id] || {}).phone || "")}" placeholder="079 …" inputmode="tel" style="min-width:110px"></td>
+          <td>${!x.fee.vorstand && x.fee.amount > 0 && x.st !== "bezahlt" ? `<button class="btn-small" data-wa="${x.id}" title="${esc(feeMessage(x))}">💬</button>` : ""}</td>
+          <td>${x.fee.vorstand ? "" : `<input data-k="note" value="${esc((fees[x.id] || {}).note || "")}" placeholder="z. B. per Twint">`}</td>` : ""}</tr>`).join("")}
       </tbody></table></div>
       ${edit ? `<div class="btn-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px"><button class="btn-small" id="reqAll">alle offenen als «Twint angefordert» markieren</button></div>` : ""}
     </div>
@@ -520,6 +527,31 @@ function viewMembers(c){
     await ref(id).set(patch, { merge:true });
     if(k === "status") MST.log("finanzen", `Beitrag ${Y} ${memberName(id)}: ${el.value}`);
   });
+  c.querySelectorAll("[data-phone]").forEach(el => el.onchange = async () => {
+    await db.collection("contacts").doc(el.dataset.phone).set({ phone:el.value.trim() }, { merge:true });
+  });
+  c.querySelectorAll("[data-wa]").forEach(b => b.onclick = async () => {
+    const x = feeList().find(y => y.id === b.dataset.wa);
+    const nr = waNumber((contacts[x.id] || {}).phone);
+    window.open(`https://wa.me/${nr}?text=${encodeURIComponent(feeMessage(x))}`, "_blank");
+    await markRequested([x.id]);
+    MST.log("finanzen", `Beitrag ${Y} ${x.m.name}: per WhatsApp angefordert`);
+  });
+  document.getElementById("groupMsg").onclick = () => {
+    const open = feeList().filter(x => !x.fee.vorstand && x.fee.amount > 0 && x.st !== "bezahlt" && x.st !== "erlassen");
+    let dlg = document.getElementById("waDlg");
+    if(!dlg){ dlg = document.createElement("dialog"); dlg.id = "waDlg"; document.body.appendChild(dlg); }
+    dlg.style.width = "min(560px, calc(100vw - 24px))";
+    dlg.innerHTML = `<form method="dialog"><h3>Sammelnachricht (${open.length} offen)</h3>
+      <textarea id="waText" rows="14" style="width:100%; font-family:var(--font-body); font-size:13px">${esc(groupMessage(open))}</textarea>
+      <label class="check-label" style="flex-direction:row; gap:8px; align-items:center; text-transform:none; letter-spacing:0; font-size:13px"><input type="checkbox" id="waMark" checked> alle danach als «Twint angefordert» markieren</label>
+      <div class="dlg-actions"><button type="button" class="btn-ghost" id="waCopy">Kopieren</button><div class="right"><button type="button" class="btn-ghost" id="waClose">Schliessen</button><button type="button" class="btn-primary" id="waSend">In WhatsApp teilen</button></div></div></form>`;
+    const done = async () => { if(document.getElementById("waMark").checked){ await markRequested(open.map(x => x.id)); MST.log("finanzen", `Beiträge ${Y}: Sammelnachricht an ${open.length} Mitglieder`); } };
+    dlg.querySelector("#waClose").onclick = () => dlg.close();
+    dlg.querySelector("#waCopy").onclick = async () => { try{ await navigator.clipboard.writeText(document.getElementById("waText").value); dlg.querySelector("#waCopy").textContent = "kopiert ✓"; await done(); }catch(e){ alert("Kopieren ging nicht – Text markieren und kopieren."); } };
+    dlg.querySelector("#waSend").onclick = async () => { window.open("https://wa.me/?text=" + encodeURIComponent(document.getElementById("waText").value), "_blank"); await done(); dlg.close(); };
+    dlg.showModal();
+  };
   document.getElementById("reqAll").onclick = async () => {
     const open = feeList().filter(x => !x.fee.vorstand && x.st === "offen" && x.fee.amount > 0);
     if(!confirm(`${open.length} Mitglieder als «Twint angefordert» markieren?`)) return;
@@ -527,7 +559,85 @@ function viewMembers(c){
   };
 }
 
+/* ---------- Twint-Anforderung per WhatsApp ---------- */
+function waNumber(phone){
+  let d = String(phone || "").replace(/[^\d+]/g, "");
+  if(d.startsWith("+")) d = d.slice(1);
+  else if(d.startsWith("00")) d = d.slice(2);
+  else if(d.startsWith("0")) d = "41" + d.slice(1);
+  return d.length >= 10 ? d : "";
+}
+function feeReason(x){
+  const parts = [];
+  if(x.h.awb) parts.push("Afterworkbar");
+  if(x.h.aufbau) parts.push("Auf-/Abbau");
+  if(x.fee.label) return ` (${x.fee.label})`;
+  return parts.length ? ` (schon mit ${CHFr(num(V().discount) * parts.length)} Rabatt für deinen Einsatz: ${parts.join(" + ")})` : "";
+}
+function feeMessage(x){
+  const v = V(), k = memberName(v.vorstand.kassier);
+  return `Hoi ${x.m.alias || x.m.short || x.m.name.split(" ")[0]}! 🍻 Dein MST-Jahresbeitrag ${Y}: ${CHF(x.fee.amount)}${feeReason(x)}.\n`
+    + `Bitte per Twint an ${k}${v.twint ? " (" + v.twint + ")" : ""}. Merci! – ${k.split(" ")[0]}`;
+}
+function groupMessage(list){
+  const v = V(), k = memberName(v.vorstand.kassier);
+  return `🍻 MST-Jahresbeiträge ${Y} – bitte per Twint an ${k}${v.twint ? " (" + v.twint + ")" : ""}:\n`
+    + list.map(x => `• ${x.m.alias || x.m.short} ${CHF(x.fee.amount).replace("CHF ", "CHF ")}`).join("\n")
+    + `\n(Rabatt CHF ${num(v.discount)}.– pro Helfereinsatz ist schon abgezogen.) Merci!`;
+}
+async function markRequested(ids){
+  const b = db.batch();
+  ids.forEach(id => { if(((fees[id] || {}).status || "offen") === "offen") b.set(db.collection("finance").doc(Y).collection("fees").doc(id), { status:"angefordert", requestedAt:new Date().toISOString().slice(0, 10) }, { merge:true }); });
+  await b.commit();
+}
+
+/* ---------- Belege (Foto/PDF) zu Buchungen – Base64-Stücke in finance/<jahr>/belege ---------- */
+const BELEG_CHUNK = 700000;
+async function shrinkImage(file){
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+  const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+  cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+  return await new Promise(r => cv.toBlob(r, "image/jpeg", 0.72));
+}
+async function uploadBeleg(booking, file){
+  let blob = file, type = file.type || "application/octet-stream";
+  if(type.startsWith("image/")){ try{ blob = await shrinkImage(file); type = "image/jpeg"; }catch(e){ console.warn("Bild nicht verkleinert", e); } }
+  if(blob.size > 4 * 1024 * 1024) throw new Error("Datei zu gross (max. 4 MB).");
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = ""; for(let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  const b64 = btoa(bin), n = Math.ceil(b64.length / BELEG_CHUNK);
+  const fref = db.collection("finance").doc(Y);
+  const old = (booking.beleg && booking.beleg.chunks) || 0;
+  for(let i = 0; i < n; i++) await fref.collection("belege").doc(`${booking.id}_${i}`).set({ data:b64.slice(i * BELEG_CHUNK, (i + 1) * BELEG_CHUNK) });
+  for(let i = n; i < old; i++) await fref.collection("belege").doc(`${booking.id}_${i}`).delete();
+  await fref.collection("bookings").doc(booking.id).set({ beleg:{ name:file.name, type, chunks:n, size:blob.size, at:Date.now(), by:me.id } }, { merge:true });
+  MST.log("finanzen", `Beleg zu «${booking.text}» hochgeladen`);
+}
+async function openBeleg(booking){
+  const w = window.open("", "_blank");
+  try{
+    const parts = await Promise.all([...Array(booking.beleg.chunks).keys()].map(i => db.collection("finance").doc(Y).collection("belege").doc(`${booking.id}_${i}`).get()));
+    const bin = atob(parts.map(p => p.data().data).join(""));
+    const bytes = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type:booking.beleg.type }));
+    if(w) w.location.href = url; else location.href = url;
+  }catch(e){ console.error(e); if(w) w.close(); alert("Beleg konnte nicht geladen werden."); }
+}
+async function deleteBeleg(booking){
+  const fref = db.collection("finance").doc(Y);
+  for(let i = 0; i < ((booking.beleg && booking.beleg.chunks) || 0); i++) await fref.collection("belege").doc(`${booking.id}_${i}`).delete();
+  await fref.collection("bookings").doc(booking.id).set({ beleg:firebase.firestore.FieldValue.delete() }, { merge:true });
+}
+
 /* =================== FINANZEN =================== */
+function belegCell(b, edit){
+  const view = b.beleg ? `<button class="btn-small" data-open-beleg="${b.id}" title="${esc(b.beleg.name || "Beleg")}">${(b.beleg.type || "").includes("pdf") ? "📄" : "🧾"}</button>` : "";
+  if(!edit) return view;
+  return `${view}<button class="btn-small" data-attach="${b.id}" title="${b.beleg ? "Beleg ersetzen" : "Beleg anhängen"}">📎</button>${b.beleg ? `<button class="del-btn" data-unattach="${b.id}" title="Beleg entfernen">✕</button>` : ""}`;
+}
 function viewFinance(c){
   if(!fin && !canFin()){ c.innerHTML = '<div class="card"><p class="muted">Für dieses Jahr sind noch keine Finanzen erfasst.</p></div>'; return; }
   const F = finance(), edit = canFin();
@@ -550,19 +660,22 @@ function viewFinance(c){
         <button class="btn-primary" type="submit">Speichern</button>
       </form></div>` : ""}
     <div class="card" style="margin-top:12px"><h3>Kontobewegungen</h3>
-      <div class="tbl-scroll"><table class="lst"><thead><tr><th style="width:130px">Datum</th><th>Was</th><th style="width:170px">Bereich</th><th class="num" style="width:110px">Ausgaben</th><th class="num" style="width:110px">Einnahmen</th>${edit ? "<th></th>" : ""}</tr></thead><tbody>
+      <div class="tbl-scroll"><table class="lst"><thead><tr><th style="width:130px">Datum</th><th>Was</th><th style="width:170px">Bereich</th><th class="num" style="width:110px">Ausgaben</th><th class="num" style="width:110px">Einnahmen</th><th style="width:70px">Beleg</th>${edit ? "<th></th>" : ""}</tr></thead><tbody>
       ${F.sorted.map(b => edit ? `<tr data-b="${b.id}"><td><input type="date" data-k="date" value="${esc(b.date || "")}"></td><td><input data-k="text" value="${esc(b.text || "")}"></td>
         <td><input data-k="cat" list="catList" value="${esc(b.cat || "")}"></td><td><input data-k="out" inputmode="decimal" value="${num(b.out) ? num(b.out).toFixed(2) : ""}" style="text-align:right"></td>
-        <td><input data-k="in" inputmode="decimal" value="${num(b.in) ? num(b.in).toFixed(2) : ""}" style="text-align:right"></td><td><button class="del-btn" data-delb="${b.id}">✕</button></td></tr>`
-        : `<tr><td>${dCH(b.date)}</td><td>${esc(b.text)}</td><td class="small muted">${esc(b.cat || "")}</td><td class="num">${num(b.out) ? esc(CHF(num(b.out))) : ""}</td><td class="num">${num(b.in) ? esc(CHF(num(b.in))) : ""}</td></tr>`).join("")}
-      <tr class="total"><td></td><td>Total</td><td></td><td class="num">${esc(CHF(F.sumOut))}</td><td class="num">${esc(CHF(F.sumIn))}</td>${edit ? "<td></td>" : ""}</tr>
+        <td><input data-k="in" inputmode="decimal" value="${num(b.in) ? num(b.in).toFixed(2) : ""}" style="text-align:right"></td><td>${belegCell(b, true)}</td><td><button class="del-btn" data-delb="${b.id}">✕</button></td></tr>`
+        : `<tr><td>${dCH(b.date)}</td><td>${esc(b.text)}</td><td class="small muted">${esc(b.cat || "")}</td><td class="num">${num(b.out) ? esc(CHF(num(b.out))) : ""}</td><td class="num">${num(b.in) ? esc(CHF(num(b.in))) : ""}</td><td>${belegCell(b, false)}</td></tr>`).join("")}
+      <tr class="total"><td></td><td>Total</td><td></td><td class="num">${esc(CHF(F.sumOut))}</td><td class="num">${esc(CHF(F.sumIn))}</td><td class="small muted">${F.sorted.filter(b => b.beleg).length}/${F.sorted.length}</td>${edit ? "<td></td>" : ""}</tr>
       </tbody></table></div>
       <datalist id="catList">${cats.map(x => `<option value="${esc(x)}">`).join("")}</datalist>
       ${edit ? `<form class="form-grid" id="bookForm" style="margin-top:12px; grid-template-columns:140px 2fr 1fr 110px 110px auto">
         <label>Datum<input type="date" name="date" value="${new Date().toISOString().slice(0, 10)}" required></label>
         <label>Was<input name="text" required></label><label>Bereich<input name="cat" list="catList"></label>
         <label>Ausgabe<input name="out" inputmode="decimal"></label><label>Einnahme<input name="in" inputmode="decimal"></label>
-        <button class="btn-primary" type="submit">+ Buchen</button></form>` : ""}
+        <button class="btn-primary" type="submit">+ Buchen</button>
+        <label style="grid-column:1/-1">Beleg (optional, Foto oder PDF)<input name="beleg" type="file" accept="image/*,application/pdf"></label></form>
+        <input type="file" id="belegPick" accept="image/*,application/pdf" hidden>
+        <p class="form-msg small muted" id="belegMsg"></p>` : ""}
     </div>
     <div class="card" style="margin-top:12px"><h3>Afterworkbar-Abrechnung ${esc(Y)}</h3>
       <p class="rule-note">Gewinn = Einnahmen − Kosten: <b>${esc(CHF(F.awbProfit))}</b>${edit ? " · eine Zeile pro Posten: «Was; Wo; Betrag; Bemerkung» bzw. «Was; Betrag»" : ""}</p>
@@ -573,6 +686,7 @@ function viewFinance(c){
         <button class="btn-primary" id="awbSave">Speichern</button></div>`
         : `<table class="lst"><tbody>${(F.awb.costs || []).map(x => `<tr><td>${esc(x.was)}</td><td>${esc(x.wo || "")}</td><td class="num">${esc(CHF(num(x.betrag)))}</td></tr>`).join("")}</tbody></table>`}
     </div>`;
+  c.querySelectorAll("[data-open-beleg]").forEach(btn => btn.onclick = () => openBeleg(bookings.find(x => x.id === btn.dataset.openBeleg)));
   if(!edit) return;
   const fref = db.collection("finance").doc(Y);
   document.getElementById("finForm").onsubmit = async e => {
@@ -585,9 +699,15 @@ function viewFinance(c){
     const b = { date:t.date.value, text:t.text.value.trim(), cat:t.cat.value.trim(), out:num(t.out.value), in:num(t.in.value), at:Date.now(), by:me.id };
     if((b.date > vjEnd() || b.date < vjStart()) && !confirm(`Das Datum liegt ausserhalb des Vereinsjahrs ${vjLabel()} (${dCH(vjStart())} – ${dCH(vjEnd())}). Für das neue Vereinsjahr zuerst unter «Einstellungen» die nächste GV anlegen. Trotzdem hier buchen?`)) return;
     await fref.set({ vjStart:vjStart(), vjEnd:vjEnd() }, { merge:true });
-    await fref.collection("bookings").add(b);
+    const file = t.beleg.files[0];
+    const ref = await fref.collection("bookings").add(b);
     MST.log("finanzen", `Buchung ${dCH(b.date)} ${b.text}: ${b.out ? "−" + b.out : "+" + b.in}`);
-    t.text.value = ""; t.out.value = ""; t.in.value = ""; t.text.focus();
+    if(file){
+      document.getElementById("belegMsg").textContent = "Beleg wird hochgeladen …";
+      try{ await uploadBeleg(Object.assign({ id:ref.id }, b), file); document.getElementById("belegMsg").textContent = "Beleg gespeichert ✓"; }
+      catch(err){ console.error(err); document.getElementById("belegMsg").textContent = "Beleg ging nicht: " + (err.message || err); }
+    }
+    t.text.value = ""; t.out.value = ""; t.in.value = ""; t.beleg.value = ""; t.text.focus();
   };
   c.querySelectorAll("tr[data-b] [data-k]").forEach(el => el.onchange = async () => {
     const id = el.closest("tr").dataset.b, k = el.dataset.k;
@@ -595,8 +715,26 @@ function viewFinance(c){
     await fref.collection("bookings").doc(id).set({ [k]:val }, { merge:true });
     MST.log("finanzen", `Buchung geändert: ${k} = ${val}`);
   });
+  // Belege anhängen / ersetzen / löschen
+  let pickFor = null;
+  const pick = document.getElementById("belegPick");
+  c.querySelectorAll("[data-attach]").forEach(btn => btn.onclick = () => { pickFor = btn.dataset.attach; pick.click(); });
+  pick.onchange = async () => {
+    const file = pick.files[0], bk = bookings.find(x => x.id === pickFor);
+    if(!file || !bk) return;
+    document.getElementById("belegMsg").textContent = "Beleg wird hochgeladen …";
+    try{ await uploadBeleg(bk, file); document.getElementById("belegMsg").textContent = `Beleg zu «${bk.text}» gespeichert ✓`; }
+    catch(err){ console.error(err); document.getElementById("belegMsg").textContent = "Beleg ging nicht: " + (err.message || err); }
+    pick.value = "";
+  };
+  c.querySelectorAll("[data-unattach]").forEach(btn => btn.onclick = async () => {
+    const bk = bookings.find(x => x.id === btn.dataset.unattach);
+    if(bk && confirm("Beleg entfernen?")) await deleteBeleg(bk);
+  });
   c.querySelectorAll("[data-delb]").forEach(b => b.onclick = async () => {
     if(!confirm("Buchung löschen?")) return;
+    const bk = bookings.find(x => x.id === b.dataset.delb);
+    if(bk && bk.beleg) await deleteBeleg(bk);
     await fref.collection("bookings").doc(b.dataset.delb).delete();
     MST.log("finanzen", "Buchung gelöscht");
   });

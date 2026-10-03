@@ -220,7 +220,13 @@ service cloud.firestore {
       allow delete: if isMember() && resource.data.by == myId() && resource.data.status == 'neu';
     }
 
+    // ---------- Kontakte (Handynummern für Twint-Anforderungen) – nur Vorstand ----------
+    match /contacts/{id} {
+      allow read, write: if isVorstand();
+    }
+
     // ---------- Finanzen (Kassier) ----------
+    // finance/<gv-jahr>/belege/<buchung>_<n> = Beleg (Foto/PDF als Base64-Stücke)
     // finance/<gv-jahr> = Vereinsjahr (Anfangsbestand, Kasse, Beitrag),
     // finance/<gv-jahr>/bookings/<id> = Kontobewegungen, finance/<gv-jahr>/fees/<memberId> = Jahresbeiträge
     match /finance/{year} {

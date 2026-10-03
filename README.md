@@ -7,6 +7,9 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
 - `gv/` + `js/gv-app.js` – GV: Traktanden (Platzhalter wie {vermoegen}, Vorschläge der Mitglieder), Mitglieder & Jahresbeiträge
   (Rabatt aus dem AWB-Einsatzplan), Finanzen (Kontobewegungen, AWB-Abrechnung), Protokoll des Aktuars, Jahresrückblick;
   druckt Übersicht und Protokoll im Stil der GV-Übersicht 2026 (Calibri, A4). Alte PDFs im Reiter «PDF».
+  Kassier: Beitrag per WhatsApp anfordern (einzeln über wa.me mit Handynummer aus `contacts/<memberId>` – nur Vorstand
+  lesbar – oder Sammelnachricht), danach Status «Twint angefordert»; Belege (Foto/PDF, Fotos auf 1600 px verkleinert)
+  hängen an der Buchung: `finance/<jahr>/belege/<buchung>_<n>` (Base64-Stücke), Metadaten in `bookings/<id>.beleg`.
 - `spieltag/` – Ermatinger Minispieltag, **öffentlich** (Zuschauer ohne Login): Live-Rangliste, Spiele, Historie 2020–…;
   als Admin: Spiele wechseln/einstellen (Einzel, 2er, 3er …, Modus, Punkte), auslosen, Teams anpassen, Resultate eintragen
 - `spieltag/organisation/` – nur Admin: Teilnehmende des Jahres, Gäste, neue Vereinsmitglieder (inkl. Login),

@@ -74,6 +74,7 @@ const GameDialog = (() => {
           </div>
           ${g.pointsScheme === "liste" ? `<label>Punkte pro Platz/Stufe (Komma)<input name="customPoints" value="${esc(g.customPoints || "")}" placeholder="18, 15, 12, 10, 7, 4, 1"></label>` : ""}
 
+          <label>Material (eine Zeile pro Posten)<textarea name="material" rows="3" style="width:100%">${esc(g.material || "")}</textarea></label>
           <div class="preview">
             <div><b>${n}</b> Teilnehmende → ${esc(E.describeUnits(n, g))}</div>
             ${units >= 2 ? `<div>${esc(E.describeFormat(units, g))}</div>` : ""}
@@ -103,6 +104,7 @@ const GameDialog = (() => {
         g.maxPoints = num("maxPoints") || 1;
         g.pointsScheme = v("pointsScheme");
         if(f.elements.customPoints) g.customPoints = v("customPoints");
+        if(f.elements.material) g.material = v("material");
         g = E.normalizeGame(g);
       };
       // jede Änderung aktualisiert Vorschau (ausser Textfelder während dem Tippen)

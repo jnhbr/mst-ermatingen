@@ -17,12 +17,14 @@
   --green-soft: rgba(95,212,138,0.14);
   --radius: 12px;
   --radius-sm: 8px;
-  --font-display:'Oswald',sans-serif;
-  --font-body:'Inter',sans-serif;
+  --font-display:'Bebas Neue','Oswald',sans-serif;
+  --font-body:'Barlow',sans-serif;
   --font-mono:'JetBrains Mono',monospace;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
+/* Bebas Neue gibt es nur in einer Stärke – kein künstliches Fett */
+html{font-synthesis:none;}
 body{
   background:
     radial-gradient(1200px 600px at 12% -10%, rgba(255,241,57,0.06), transparent 55%),

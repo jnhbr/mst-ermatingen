@@ -24,7 +24,9 @@ const participants = () => ST.effectiveParticipants(yearDoc, signups);
 const gamePath = id => `spieltag/${YEAR}/games/${id}`;
 const ctx = () => ({ participants:participants() });
 const leadersOf = id => ((gameData[id] || {}).leaders) || [];
-const canEnter = g => isAdmin() || (!!viewer.memberId && leadersOf(g.id).includes(viewer.memberId));
+const entryOpen = () => !!(yearDoc && yearDoc.entryOpen);
+const isLeader = g => !!viewer.memberId && leadersOf(g.id).includes(viewer.memberId);
+const canEnter = g => isAdmin() || isLeader(g) || (!!viewer.memberId && entryOpen());
 const canSeeBeer = () => !!(yearDoc && yearDoc.beerOn) && (isAdmin() || !!viewer.memberId);
 function myPid(){
   const p = ST.pidOfMember(viewer.memberId);
@@ -47,13 +49,13 @@ auth.onAuthStateChanged(u => refreshViewer(u));
 async function refreshViewer(u){
   if(!D.test){
     let v = { admin:false, memberId:null };
-    if(u && !u.isAnonymous) v = { admin:true, memberId:MST.ADMIN_MEMBER_ID };
+    if(u && !u.isAnonymous){ const usr = await MST.loadVorstand(u); v = { admin:usr.admin, memberId:usr.id, vorstand:true }; }
     else if(u){
       try{ const s = await db.collection("sessions").doc(u.uid).get(); if(s.exists) v.memberId = s.data().memberId; }catch(e){}
     }
     viewer = v;
   }
-  if(viewer.memberId){
+  if(viewer.memberId && !viewer.vorstand){
     try{
       await MST.loadDirectory();
       const d = MST.directory[viewer.memberId] || {};
@@ -83,7 +85,15 @@ function openYear(y){
   YEAR = y; yearDoc = undefined; gameData = {}; signups = {};
   if(!y){ yearDoc = null; render(); return; }
   unsubYear.push(D.watchDoc(`spieltag/${y}`, d => { yearDoc = d; watchBeer(); render(); }));
-  unsubYear.push(D.watchCollection(`spieltag/${y}/games`, docs => { gameData = {}; docs.forEach(d => gameData[d.id] = d.data); render(); }));
+  unsubYear.push(D.watchCollection(`spieltag/${y}/games`, docs => {
+    gameData = {};
+    docs.forEach(d => {
+      const tn = d.data.teamNames || {};
+      (d.data.units || []).forEach(u => { if(tn[u.id]) u.teamName = tn[u.id]; });
+      gameData[d.id] = d.data;
+    });
+    render();
+  }));
   unsubYear.push(D.watchCollection(`spieltag/${y}/signups`, docs => { signups = {}; docs.forEach(d => signups[d.id] = d.data); render(); }));
 }
 function watchBeer(){
@@ -123,6 +133,7 @@ function draw(){
   if(yearDoc === undefined || settings === null) return;
   const r = route();
   if(r.view === "tv"){ drawTV(); return; }
+  if(r.view === "siegerehrung"){ drawCeremony(); return; }
   stopTV();
   const gs = games();
   const ov = yearDoc ? E.overall(gs, gameData, ctx()) : null;
@@ -213,7 +224,7 @@ function viewOverall(c, ov){
   }).join("");
   c.innerHTML = top + `
     <div class="card">
-      <div class="card-head"><h3>${started ? "Gesamtrangliste" : "Startliste"} ${esc(YEAR)}</h3><a class="btn-small" href="#tv" style="text-decoration:none">📺 TV-Ansicht</a></div>
+      <div class="card-head"><h3>${started ? "Gesamtrangliste" : "Startliste"} ${esc(YEAR)}</h3><span><a class="btn-small" href="#tv" style="text-decoration:none">📺 TV-Ansicht</a>${isAdmin() ? ' <a class="btn-small" href="#siegerehrung" style="text-decoration:none">🏆 Siegerehrung</a>' : ""}</span></div>
       <p class="rule-note" style="margin:0 0 10px">${started
         ? "Graue, schräge Zahlen sind vorläufig (Spiel läuft noch – im K.o. sind es die schon sicheren Punkte)."
         : "Noch keine Resultate – sortiert nach Startnummer (Titelverteidiger = Nr. 1, sonst Vereins- bzw. Gästenummer). Sobald gespielt wird, sortiert die Liste nach Punkten."}</p>
@@ -516,8 +527,12 @@ function viewGame(c, id, ov){
           ${!solo ? `<button class="btn-small" id="rmGoneBtn">aus den Teams nehmen</button>` : ""}</div>`;
       }
     }
-  } else if(canEnter(g)){
+  } else if(isLeader(g)){
     html += `<div class="notice"><span>👤 Du leitest diese Station – Resultate kannst du direkt eintragen.</span></div>`;
+  } else if(canEnter(g)){
+    html += `<div class="notice"><span>✍️ Resultate eintragen ist für alle Mitglieder offen. Jede Änderung wird mit deinem Namen protokolliert.</span></div>`;
+  } else if(!viewer.memberId && entryOpen()){
+    html += `<div class="notice"><span>Resultate eintragen kannst du nach dem <a href="#" onclick="MST.showLogin('');return false;">Login</a> (Nummer + Vorname).</span></div>`;
   }
 
   if(!ev.drawn){
@@ -528,14 +543,17 @@ function viewGame(c, id, ov){
   const me = myPid();
   if(!solo){
     const edit = isAdmin() && editTeams[g.id];
+    const canName = u => isAdmin() || isLeader(g) || (!!viewer.memberId && u.members.includes(me) && entryOpen());
     html += `<div class="card"><h3>Teams</h3><div class="units">${ev.units.map(u => `
-      <div class="unit ${u.members.includes(me) ? "mine" : ""}"><div class="unit-name">${esc(u.name || "Team")} <small>${u.members.length}er</small></div>
+      <div class="unit ${u.members.includes(me) ? "mine" : ""}"><div class="unit-name">${esc(u.teamName || u.name || "Team")} <small>${u.members.length}er</small>
+        ${canName(u) ? `<button class="link-btn" data-tname="${esc(u.id)}" title="Teamname ändern" style="font-size:11px; padding:0 4px">✎</button>` : ""}</div>
         ${u.members.map(p => `<div class="unit-m"><span>${esc(ST.nameOf(p))}</span>${edit ? `<select data-move="${esc(p)}" data-from="${esc(u.id)}">
           <option value="">verschieben …</option>${ev.units.filter(x => x.id !== u.id).map(x => `<option value="${esc(x.id)}">→ ${esc(x.name)}</option>`).join("")}</select>` : ""}</div>`).join("")}
       </div>`).join("")}</div>
       ${edit ? '<p class="rule-note" style="margin:10px 0 0">Person in ein anderes Team verschieben. Gespielte Resultate bleiben beim Team.</p>' : ""}</div>`;
   }
 
+  html += materialCard(g);
   // Alle Partien, bei denen beide Gegner feststehen – praktisch auf dem Handy
   if(g.mode !== "rangliste" && ev.status !== "fertig"){
     const open = tl.items.filter(it => it.a && it.b && !it.done);
@@ -552,6 +570,18 @@ function viewGame(c, id, ov){
   bindGame(g, ev, data);
 }
 
+/* Material & Helfer der Station (Material aus den Spieleinstellungen, abhaken: Admin + Stationsleitung) */
+function materialCard(g){
+  const items = String(g.material || "").split("\n").map(x => x.trim()).filter(Boolean);
+  const lead = leaderNames(g.id);
+  if(!items.length && !lead.length && !isAdmin()) return "";
+  const done = (gameData[g.id] || {}).materialDone || {};
+  const can = isAdmin() || isLeader(g);
+  return `<div class="card" style="margin:12px 0"><h3>Material & Helfer</h3>
+    <p class="small muted" style="margin:0 0 6px">${lead.length ? "Stationsleitung: <b>" + esc(lead.join(", ")) + "</b>" : "Noch keine Stationsleitung."}${g.place ? " · " + esc(g.place) : ""}${g.start ? " · ab " + esc(g.start) : ""}</p>
+    ${items.length ? items.map((it, i) => `<label class="drinker ${done[i] ? "on" : ""}" style="margin:0 6px 6px 0"><input type="checkbox" data-mat="${i}" ${done[i] ? "checked" : ""} ${can ? "" : "disabled"}>${esc(it)}${done[i] ? ` <span class="small muted">✓ ${esc(done[i])}</span>` : ""}</label>`).join("")
+      : `<p class="small muted">${isAdmin() ? "Material unter «✎ Einstellen» eintragen (eine Zeile pro Posten)." : ""}</p>`}</div>`;
+}
 function unitById(ev, id){ return ev.units.find(u => u.id === id); }
 function label(ev, id){ return id ? ST.unitLabel(unitById(ev, id)) : ""; }
 
@@ -719,6 +749,17 @@ function bindGame(g, ev, data){
       await D.merge(gamePath(g.id), { units:units.filter(u => u.members.length) });
     });
   }
+  document.querySelectorAll("[data-mat]").forEach(cb => cb.onchange = async () => {
+    const who = (MST.user && (MST.user.short || MST.user.name)) || "Admin";
+    await D.merge(gamePath(g.id), { materialDone:{ [cb.dataset.mat]:cb.checked ? who : null } });
+  });
+  document.querySelectorAll("[data-tname]").forEach(b => b.onclick = async () => {
+    const u = (data.units || []).find(x => x.id === b.dataset.tname);
+    const name = prompt("Teamname:", u.teamName || "");
+    if(name === null) return;
+    const clean = name.trim().slice(0, 40);
+    await writeResult(g, { teamNames:{ [u.id]:clean || null } }, `${g.name}: Teamname ${u.name}`, u.teamName || null, clean || null);
+  });
   if(!canEnter(g)) return;
   document.querySelectorAll("[data-score]").forEach(inp => inp.onchange = async () => {
     const uid = inp.dataset.score, i = +inp.dataset.i;
@@ -727,8 +768,9 @@ function bindGame(g, ev, data){
     const v = inp.value.trim().replace(",", ".");
     if(v !== "" && isNaN(Number(v))){ inp.value = ""; return; }
     arr[i] = v === "" ? null : Number(v);
+    const before = ((data.scores || {})[uid] || []).filter(x => x != null).join("+") || null;
     data.scores = Object.assign({}, data.scores, { [uid]:arr });
-    await writeResult(g, { scores:{ [uid]:arr } }, `${g.name}: ${label(ev, uid)} ${arr.filter(x => x != null).join("+")}`);
+    await writeResult(g, { scores:{ [uid]:arr } }, `${g.name}: ${label(ev, uid)}`, before, arr.filter(x => x != null).join("+") || null);
   });
   document.querySelectorAll("[data-match]").forEach(box => box.querySelectorAll("input").forEach(inp => inp.onchange = () => {
     const [ia, ib] = box.querySelectorAll("input");
@@ -745,23 +787,25 @@ function bindGame(g, ev, data){
     const aWins = btn.dataset.win === "a";
     const same = cur && cur.a === btn.dataset.a && cur.b === btn.dataset.b && cur.sa != null && ((cur.sa > cur.sb) === aWins);
     await writeResult(g, { matches:{ [key]:{ a:btn.dataset.a, b:btn.dataset.b, sa:same ? null : (aWins ? 1 : 0), sb:same ? null : (aWins ? 0 : 1), at:Date.now() } } },
-      `${g.name}: ${same ? "Sieg gelöscht" : "Sieg " + label(ev, aWins ? btn.dataset.a : btn.dataset.b)}`);
+      `${g.name}: ${label(ev, btn.dataset.a)} – ${label(ev, btn.dataset.b)}`, prevMatch(g, key), same ? null : "Sieg " + label(ev, aWins ? btn.dataset.a : btn.dataset.b));
   });
 }
-async function writeResult(g, patch, text){
+async function writeResult(g, patch, text, before, after){
   try{
     await D.merge(gamePath(g.id), patch);
-    if(!D.test && !isAdmin()) MST.log("spieltag", text);
-  }catch(e){ console.error(e); alert("Speichern hat nicht geklappt – bist du noch eingeloggt?"); }
+    if(!D.test && MST.user) MST.log("spieltag", text, { game:g.id, before:before == null ? null : String(before), after:after == null ? null : String(after) });
+  }catch(e){ console.error(e); alert("Speichern hat nicht geklappt – bist du noch eingeloggt? (Resultate eintragen geht nur, solange sie offen sind.)"); }
 }
+const prevMatch = (g, key) => { const m = ((gameData[g.id] || {}).matches || {})[key]; return m && m.sa != null ? `${m.sa}:${m.sb}` : null; };
 async function saveMatch(g, ev, key, a, b, va, vb, noDraw){
   va = String(va).trim(); vb = String(vb).trim();
-  if(va === "" && vb === ""){ await writeResult(g, { matches:{ [key]:{ a, b, sa:null, sb:null, at:Date.now() } } }, `${g.name}: Resultat gelöscht`); return; }
+  const what = `${g.name}: ${label(ev, a)} – ${label(ev, b)}`;
+  if(va === "" && vb === ""){ await writeResult(g, { matches:{ [key]:{ a, b, sa:null, sb:null, at:Date.now() } } }, what, prevMatch(g, key), null); return; }
   if(va === "" || vb === "") return;
   const sa = Number(va), sb = Number(vb);
   if(isNaN(sa) || isNaN(sb)) return;
   if(noDraw && sa === sb){ alert("Unentschieden geht hier nicht – es braucht einen Sieger."); return; }
-  await writeResult(g, { matches:{ [key]:{ a, b, sa, sb, at:Date.now() } } }, `${g.name}: ${label(ev, a)} ${sa}:${sb} ${label(ev, b)}`);
+  await writeResult(g, { matches:{ [key]:{ a, b, sa, sb, at:Date.now() } } }, what, prevMatch(g, key), `${sa}:${sb}`);
 }
 async function doDraw(g, mode, silent){
   const data = gameData[g.id];
@@ -821,12 +865,21 @@ function upcoming(ov, limit){
   });
   return list.sort((x, y) => (x.it.time == null ? 9999 : x.it.time) - (y.it.time == null ? 9999 : y.it.time)).slice(0, limit || 12);
 }
+function programRows(){
+  return String((yearDoc && yearDoc.program) || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+    const m = /^(\d{1,2}[:.]\d{2})\s+(.*)$/.exec(l);
+    return m ? { start:E.parseTime(m[1]), text:m[2] } : { start:null, text:l };
+  });
+}
 function viewSchedule(c, ov){
   const rows = scheduleRows(ov);
+  const prog = programRows();
+  const timeline = rows.map(x => ({ t:x.start, x })).concat(prog.map(p => ({ t:p.start, p })))
+    .sort((a, b) => (a.t == null ? 9999 : a.t) - (b.t == null ? 9999 : b.t));
   const nexts = upcoming(ov, 12);
   let html = `<div class="top-cards"><div class="card"><h3>Mein Spieltag</h3><p class="small muted" style="margin:0 0 8px">Alle deine Spiele mit Zeit, Feld und Gegner.</p><a class="btn-primary" href="#ich" style="text-decoration:none; display:inline-block">Öffnen →</a></div></div>`;
   html += `<div class="split"><div class="card"><h3>Tagesablauf</h3>
-    ${rows.map(x => `<div class="tl-row click ${x.ev.final ? "done" : ""}" data-game="${esc(x.g.id)}">
+    ${timeline.map(({ x, p }) => p ? `<div class="tl-row"><span class="tl-time">${p.start != null ? E.fmtTime(p.start) : "–"}</span><span>📌</span><div><div class="tl-name">${esc(p.text)}</div></div><span></span></div>` : `<div class="tl-row click ${x.ev.final ? "done" : ""}" data-game="${esc(x.g.id)}">
       <span class="tl-time">${x.start != null ? E.fmtTime(x.start) : "–"}${x.tl.end != null && x.tl.items.length ? `<small> –${E.fmtTime(x.tl.end)}</small>` : ""}</span><span>${esc(x.g.icon || "")}</span>
       <div><div class="tl-name">${esc(x.g.name)}</div><div class="sub">${esc([x.g.place, x.g.fields > 1 ? x.g.fields + " Felder" : "", leaderNames(x.g.id).length ? "Leitung: " + leaderNames(x.g.id).join(", ") : ""].filter(Boolean).join(" · ") || E.summary(x.g))}</div></div>
       ${statusChip(x.ev)}</div>`).join("")}
@@ -839,10 +892,14 @@ function viewSchedule(c, ov){
       ${games().map(g => `<div class="tl-edit" data-g="${esc(g.id)}"><span>${esc(g.icon || "")}</span><span>${esc(g.name)}</span>
         <input type="time" data-k="start" value="${esc(g.start || "")}"><input data-k="place" value="${esc(g.place || "")}" placeholder="z. B. Halle">
         <input type="number" min="1" max="20" data-k="fields" value="${g.fields || 1}"><input type="number" min="1" max="120" data-k="matchMinutes" value="${g.matchMinutes || 10}"></div>`).join("")}
+      <label style="margin-top:12px">Programmpunkte (eine Zeile «HH:MM Text», z. B. «13:00 Mittagessen Minigolfbistro»)<textarea id="progText" rows="5" style="width:100%">${esc((yearDoc && yearDoc.program) || "")}</textarea></label>
+      <button class="btn-ghost" id="progSave" style="margin-top:8px">Programm speichern</button>
     </div>`;
   }
   c.innerHTML = html;
   c.querySelectorAll(".tl-row[data-game]").forEach(el => el.onclick = () => { location.hash = "spiel/" + encodeURIComponent(el.dataset.game); });
+  const ps = document.getElementById("progSave");
+  if(ps) ps.onclick = () => D.merge(`spieltag/${YEAR}`, { program:document.getElementById("progText").value });
   c.querySelectorAll(".tl-edit[data-g] input").forEach(inp => inp.onchange = async () => {
     const id = inp.closest("[data-g]").dataset.g;
     const list = (yearDoc.games || []).slice();
@@ -862,7 +919,7 @@ function viewSchedule(c, ov){
     });
     c.querySelectorAll(`[data-gid="${CSS.escape(x.g.id)}"][data-win][data-key="${x.it.key}"]`).forEach(btn => btn.onclick = async () => {
       const aWins = btn.dataset.win === "a";
-      await writeResult(x.g, { matches:{ [x.it.key]:{ a:x.it.a, b:x.it.b, sa:aWins ? 1 : 0, sb:aWins ? 0 : 1, at:Date.now() } } }, `${x.g.name}: Sieg ${label(x.ev, aWins ? x.it.a : x.it.b)}`);
+      await writeResult(x.g, { matches:{ [x.it.key]:{ a:x.it.a, b:x.it.b, sa:aWins ? 1 : 0, sb:aWins ? 0 : 1, at:Date.now() } } }, `${x.g.name}: ${label(x.ev, x.it.a)} – ${label(x.ev, x.it.b)}`, prevMatch(x.g, x.it.key), "Sieg " + label(x.ev, aWins ? x.it.a : x.it.b));
     });
   });
 }
@@ -935,6 +992,50 @@ function viewBeer(c){
     if(who) D.set(`spieltag/${YEAR}/beer/a_${Date.now()}`, { pid:who, l:Number(b.dataset.lfor), at:Date.now(), by:viewer.memberId });
   });
   c.querySelectorAll("[data-del]").forEach(b => b.onclick = () => D.remove(`spieltag/${YEAR}/beer/${b.dataset.del}`));
+}
+
+/* ---------- Siegerehrung (Beamer): Plätze von hinten aufdecken ---------- */
+let cerStep = 0;
+function ceremonySteps(ov){
+  const rows = ov.rows.filter(r => r.total > 0);
+  const steps = [{ kind:"intro" }];
+  const rest = rows.filter(r => r.rank > 10);
+  if(rest.length) steps.push({ kind:"rest", rows:rest });
+  [...new Set(rows.filter(r => r.rank <= 10).map(r => r.rank))].sort((a, b) => b - a).forEach(rk => steps.push({ kind:"rank", rank:rk, rows:rows.filter(r => r.rank === rk) }));
+  if(canSeeBeer() && beer.length) steps.push({ kind:"beer" });
+  steps.push({ kind:"end", rows:rows.filter(r => r.rank === 1) });
+  return steps;
+}
+function drawCeremony(){
+  document.body.classList.add("tv-mode");
+  const app = document.getElementById("app");
+  if(!yearDoc){ app.innerHTML = ""; return; }
+  const ov = E.overall(games(), gameData, ctx());
+  const steps = ceremonySteps(ov);
+  cerStep = Math.max(0, Math.min(cerStep, steps.length - 1));
+  const st = steps[cerStep];
+  const shown = steps.slice(1, cerStep + 1).filter(x => x.kind === "rank" || x.kind === "rest").flatMap(x => x.rows);
+  const big = r => `<div class="tv-row first" style="font-size:5vh; padding:1.2vh 0"><span class="p">${r.rank}.</span><span class="n">${esc(ST.nameOf(r.pid))}</span><span class="t">${r.total}</span></div>`;
+  let body;
+  if(st.kind === "intro") body = `<div style="text-align:center; margin-top:8vh"><div class="tv-big" style="font-size:14vh">Siegerehrung</div><p class="muted" style="font-size:2.6vh">${ST.edition(YEAR)}. Ermatinger Minispieltag · ${participants().length} Teilnehmende · ${games().length} Disziplinen</p><p class="muted" style="font-size:2vh">Leertaste oder Klick = nächster Platz · ← zurück · Esc beenden</p></div>`;
+  else if(st.kind === "rank" && st.rank <= 3) body = `<div style="text-align:center; margin-top:4vh"><div class="tv-eyebrow" style="font-size:3vh">${st.rank === 1 ? "🏆 Sieger" : st.rank === 2 ? "🥈 Platz 2" : "🥉 Platz 3"}</div>
+    <div class="tv-big" style="font-size:${st.rank === 1 ? 16 : 11}vh; margin:2vh 0">${esc(st.rows.map(r => ST.nameOf(r.pid)).join(" & "))}</div><p style="font-size:4vh; font-family:var(--font-mono); color:var(--yellow)">${st.rows[0].total} Punkte</p></div>`;
+  else if(st.kind === "beer"){ const t = beerTable()[0]; body = `<div style="text-align:center; margin-top:6vh"><div class="tv-eyebrow" style="font-size:3vh">🍺 Bierkapitän ${esc(YEAR)}</div><div class="tv-big" style="font-size:13vh; margin:2vh 0">${esc(ST.nameOf(t.pid))}</div><p style="font-size:4vh; font-family:var(--font-mono); color:var(--yellow)">${fmtL(t.l)}</p></div>`; }
+  else if(st.kind === "end") body = `<div style="text-align:center; margin-top:6vh"><div class="tv-eyebrow" style="font-size:3vh">Titelverteidiger ${parseInt(YEAR, 10) + 1} · Startnummer 1</div><div class="tv-big" style="font-size:14vh; margin:2vh 0">${esc(st.rows.map(r => ST.nameOf(r.pid)).join(" & "))}</div><p class="muted" style="font-size:2.6vh">Merci fürs Mitmachen – Prost! 🍻</p></div>`;
+  else body = `<h2>Rangliste</h2><div class="tv-cols">${shown.slice().sort((a, b) => a.rank - b.rank).map(r => `<div class="tv-row ${r.rank <= 3 ? "first" : ""}"><span class="p">${r.rank}</span><span class="n">${esc(ST.nameOf(r.pid))}</span><span class="t">${r.total}</span></div>`).join("")}</div>`;
+  app.innerHTML = `<div class="tv" id="cer">
+    <button class="tv-close" onclick="location.hash='rangliste'" title="Beenden (Esc)">✕</button>
+    <div class="tv-head"><img src="../assets/logo.png" alt=""><div><div class="tv-eyebrow">${ST.edition(YEAR)}. Ermatinger Minispieltag</div><div class="tv-title">Siegerehrung ${esc(YEAR)}</div></div>
+      <div class="tv-clock" style="font-size:2.4vh">${cerStep}/${steps.length - 1}</div></div>
+    <div class="tv-main" style="grid-template-columns:1fr"><div class="tv-panel">${body}</div></div>
+    <div class="tv-dots">${steps.map((x, i) => `<span class="${i === cerStep ? "on" : ""}"></span>`).join("")}</div></div>`;
+  document.getElementById("cer").onclick = e => { if(!e.target.closest(".tv-close")){ cerStep++; drawCeremony(); } };
+  document.onkeydown = e => {
+    if(route().view !== "siegerehrung") return;
+    if(e.key === " " || e.key === "ArrowRight" || e.key === "Enter"){ e.preventDefault(); cerStep++; drawCeremony(); }
+    else if(e.key === "ArrowLeft"){ cerStep--; drawCeremony(); }
+    else if(e.key === "Escape") location.hash = "rangliste";
+  };
 }
 
 /* ---------- TV-Ansicht (Beamer/Fernseher) ---------- */

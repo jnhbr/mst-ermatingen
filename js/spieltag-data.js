@@ -126,6 +126,7 @@ const ST = {
   sortByName(ids){ return ids.slice().sort((a, b) => this.nameOf(a).localeCompare(this.nameOf(b), "de", { sensitivity:"base" })); },
   unitLabel(u){
     if(!u) return "–";
+    if(u.teamName) return u.teamName;
     const m = u.members || [];
     if(m.length === 1) return this.nameOf(m[0]);
     if(m.length <= 3) return m.map(p => this.nameOf(p)).join(" / ");

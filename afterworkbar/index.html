@@ -12,8 +12,8 @@
 <meta name="theme-color" content="#141311">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/mst.css?v=202610031500">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/mst.css?v=202610031107">
 <style>
   /* ---------- Einsatzplan ---------- */
   .blocks{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr)); gap:12px;}
@@ -75,7 +75,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="../js/mst.js?v=202610031500" data-base="../"></script>
+<script src="../js/mst.js?v=202610031107" data-base="../"></script>
 <script>
 /* ===================== DATEN =====================
    config/awb                 { currentYear }
@@ -208,6 +208,7 @@ function renderTab(){
 /* ===================== EINSATZPLAN ===================== */
 function memberOptions(selected){
   return `<option value="">– frei –</option>` + Object.entries(MST.directory)
+    .filter(([id, m]) => !m.left || id === selected)
     .sort((a,b) => a[1].name.localeCompare(b[1].name, "de"))
     .map(([id,m]) => `<option value="${id}" ${id===selected?"selected":""}>${esc(m.short)}</option>`).join("");
 }
@@ -371,7 +372,7 @@ function renderHelpers(){
   }
   const rows = Object.entries(per).sort((a,b) => (b[1].aufbau + b[1].schicht) - (a[1].aufbau + a[1].schicht) || a[1].name.localeCompare(b[1].name, "de"));
   const open = shifts.filter(s => !s.assignee && s.kind !== "sonder").length;
-  const none = Object.keys(MST.directory).filter(id => !per[id]).map(id => MST.nameOf(id)).sort((a,b) => a.localeCompare(b, "de"));
+  const none = Object.keys(MST.directory).filter(id => !per[id] && !MST.directory[id].left).map(id => MST.nameOf(id)).sort((a,b) => a.localeCompare(b, "de"));
   return `<div class="card">
     <h3>Helfereinsätze ${esc(YEAR)}</h3>
     <p class="rule-note" style="margin:0 0 12px;">Zählt automatisch aus dem Einsatzplan – für die Helferliste an der GV. ${open ? `Noch ${open} Einsätze offen.` : "Alle Einsätze besetzt."}</p>

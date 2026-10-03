@@ -59,9 +59,7 @@ const MST = {
       try{
         if(!u){ this.showLogin(); return; }
         if(!u.isAnonymous){
-          await this.loadDirectory();
-          const d = this.directory[this.ADMIN_MEMBER_ID] || { name:"Admin", short:"Admin" };
-          this.user = { id:this.ADMIN_MEMBER_ID, name:d.name, short:d.short, admin:true };
+          await this.loadVorstand(u);
           return this.ready();
         }
         const s = await db.collection("sessions").doc(u.uid).get();
@@ -78,6 +76,21 @@ const MST = {
     });
   },
 
+  /* Vorstand (E-Mail-Login): Rolle aus roles/<e-mail>, ohne Eintrag = Admin (Jan). */
+  ROLE_LABEL: { admin:"Admin", kassier:"Kassier", aktuar:"Aktuar" },
+  async loadVorstand(u){
+    let role = "admin", id = this.ADMIN_MEMBER_ID;
+    try{
+      const r = await db.collection("roles").doc(String(u.email || "").toLowerCase()).get();
+      if(r.exists){ role = r.data().role || "admin"; id = r.data().memberId || id; }
+    }catch(e){ console.warn("Rolle", e); }
+    await this.loadDirectory();
+    const d = this.directory[id] || { name:"Vorstand", short:"Vorstand" };
+    this.user = { id, name:d.name, short:d.short, admin:role === "admin", role, vorstand:true,
+      kassier:role === "admin" || role === "kassier", aktuar:role === "admin" || role === "aktuar" };
+    return this.user;
+  },
+
   ready(){
     document.getElementById("gate").innerHTML = "";
     document.getElementById("gate").hidden = true;
@@ -88,7 +101,7 @@ const MST = {
   renderUserBar(){
     const el = document.getElementById("userbar");
     if(!el) return;
-    el.innerHTML = `<span class="user-chip">${this.user.admin ? '<span class="admin-tag">Admin</span>' : ""}${esc(this.user.name)}</span>
+    el.innerHTML = `<span class="user-chip">${this.user.vorstand ? `<span class="admin-tag">${this.ROLE_LABEL[this.user.role] || "Admin"}</span>` : ""}${esc(this.user.name)}</span>
       <button class="link-btn" id="logoutBtn" type="button">Abmelden</button>`;
     document.getElementById("logoutBtn").onclick = () => this.logout();
   },
@@ -107,7 +120,7 @@ const MST = {
       <div class="login-card">
         <img class="login-logo" src="${this.base}assets/logo.png" alt="MST Ermatingen">
         <h1 class="login-title">MST Ermatingen</h1>
-        <p class="login-sub">${adminMode ? "Admin-Login" : "Login für Mitglieder"}</p>
+        <p class="login-sub">${adminMode ? "Login für den Vorstand" : "Login für Mitglieder"}</p>
         <form id="loginForm" autocomplete="on">
           ${adminMode ? `
             <label>E-Mail<input name="email" type="email" required autocomplete="username"></label>
@@ -120,7 +133,7 @@ const MST = {
           <p class="login-msg" id="loginMsg">${msg ? esc(msg) : ""}</p>
         </form>
         ${adminMode ? '<button class="link-btn" id="pwReset" type="button">Passwort vergessen?</button><br>' : ""}
-        <button class="link-btn" id="switchLogin" type="button">${adminMode ? "← Login für Mitglieder" : "Admin-Login"}</button>
+        <button class="link-btn" id="switchLogin" type="button">${adminMode ? "← Login für Mitglieder" : "Vorstand-Login"}</button>
       </div>`;
     document.getElementById("switchLogin").onclick = () => this.showLogin("", !adminMode);
     const pr = document.getElementById("pwReset");

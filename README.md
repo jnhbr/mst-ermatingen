@@ -2,7 +2,11 @@
 
 Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root)
 
-- `index.html` – Startseite mit Kacheln (Padel, Spieltag, Afterworkbar, GV, für den Admin zusätzlich Spieltag-Organisation) + Mitgliederverwaltung für den Admin
+- `index.html` – Startseite mit Kacheln + für den Admin: Mitglieder (Alias, Eintritt, Austritt → «Ehemalige», endgültig löschen),
+  Vorstand-Logins (Rollen) und das eingeklappte Änderungsprotokoll
+- `gv/` + `js/gv-app.js` – GV: Traktanden (Platzhalter wie {vermoegen}, Vorschläge der Mitglieder), Mitglieder & Jahresbeiträge
+  (Rabatt aus dem AWB-Einsatzplan), Finanzen (Kontobewegungen, AWB-Abrechnung), Protokoll des Aktuars, Jahresrückblick;
+  druckt Übersicht und Protokoll im Stil der GV-Übersicht 2026 (Calibri, A4). Alte PDFs im Reiter «PDF».
 - `spieltag/` – Ermatinger Minispieltag, **öffentlich** (Zuschauer ohne Login): Live-Rangliste, Spiele, Historie 2020–…;
   als Admin: Spiele wechseln/einstellen (Einzel, 2er, 3er …, Modus, Punkte), auslosen, Teams anpassen, Resultate eintragen
 - `spieltag/organisation/` – nur Admin: Teilnehmende des Jahres, Gäste, neue Vereinsmitglieder (inkl. Login),
@@ -18,9 +22,12 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
 - `firestore.rules` – Regeln für das ganze Firebase-Projekt (auch die Spieltag-Seite!),
   deployen mit `firebase deploy --only firestore:rules`
 
-## Login
+## Login & Rollen
 - Mitglieder: Vereinsnummer + Vorname (erstes Wort, Gross/Klein egal). Firestore `members/<sha256>` → Sitzung `sessions/<uid>`.
-- Admin: E-Mail/Passwort-Konto aus Firebase Authentication (dasselbe wie für die Spieltag-Seite).
+- Vorstand: E-Mail/Passwort-Konten aus Firebase Authentication (legt Jan in der Firebase-Konsole an).
+  `roles/<e-mail>` = { role:"admin"|"kassier"|"aktuar", memberId }. Konto ohne Eintrag = Admin (Jans Konto).
+  Kassier: Finanzen + Beiträge, Aktuar: Protokoll, beide: GV-Traktanden. Passwort ändern über «Passwort vergessen?».
+- Schrift: Bebas Neue (Titel) + Barlow (Text); Druck der GV in Calibri (Ersatz Carlito).
 
 ## Daten (Firestore)
 - `memberDirectory/m<Nr>` – Name, Kurzname
@@ -30,6 +37,10 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
 Bis 2.10.2026 lief Padel auf Netlify (mst-padel.netlify.app, Repo `MST-Ermatingen-Padel`); die Daten wurden übernommen.
 
 ## Spieltag
+- «Resultate für alle offen» (Organisation → Spieltage): alle eingeloggten Mitglieder tragen Resultate/Teamnamen ein;
+  jede Änderung steht mit vorher/nachher im Protokoll (Organisation → Änderungen).
+- Material & Helfer pro Station (Material in den Spiel-Einstellungen, abhaken: Admin + Stationsleitung),
+  Programmpunkte im Zeitplan, Siegerehrung für den Beamer unter `spieltag/#siegerehrung`.
 - Rollen: Zuschauer (ohne Login) sehen alles ausser Bierkapitän. Mitglieder (Login Nummer + Vorname) melden sich selbst an/ab
   (wenn in der Organisation «Selbst-Anmeldung offen»), sehen «Mein Spieltag», zählen ihre Biere und tragen Resultate
   an Stationen ein, die sie leiten (`games/<id>.leaders`, nur Felder matches/scores – siehe firestore.rules). Admin: alles.
@@ -46,6 +57,11 @@ Bis 2.10.2026 lief Padel auf Netlify (mst-padel.netlify.app, Repo `MST-Ermatinge
   `spieltag/<jahr>` (+ `games/<id>`), `spieltagHistory/<jahr>`. Erstbefüllung: `private/spieltag/seed-spieltag.mjs`
   (Historie aus `~/Desktop/MST/_GESAMTRANGLISTE.xlsx`, Grundgerüst aus `2026/Spielplan_26.xlsx`).
 - Die alte Seite minispieltag.web.app (Sammlungen draws/persons/results/schedules) bleibt unberührt.
+
+## Testen ohne Login
+`private/gv-harness.html?rolle=admin|kassier|aktuar|mitglied` (bzw. `&seite=index`) lädt eine lokale Kopie der Daten
+(`node private/dump-gv.mjs`) und simuliert das Login – nichts wird gespeichert. `&druck=uebersicht|protokoll` füllt die
+Druckansicht (für Chrome headless `--print-to-pdf`).
 
 ## Cache
 `css/mst.css` und `js/mst.js` werden mit `?v=<Zeitstempel>` eingebunden (GitHub Pages cacht 10 Min.).

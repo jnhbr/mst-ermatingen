@@ -12,9 +12,9 @@
 <meta name="theme-color" content="#141311">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../css/mst.css?v=202610031500">
-<link rel="stylesheet" href="../../css/spieltag.css?v=202610031036">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/mst.css?v=202610031107">
+<link rel="stylesheet" href="../../css/spieltag.css?v=202610031107">
 <style>
   .two-col{display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:12px; align-items:start;}
   @media (max-width:860px){ .two-col{grid-template-columns:1fr;} }
@@ -52,12 +52,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../../js/mst.js?v=202610031500" data-base="../../"></script>
-<script src="../../js/spieltag-engine.js?v=202610031036"></script>
+<script src="../../js/mst.js?v=202610031107" data-base="../../"></script>
+<script src="../../js/spieltag-engine.js?v=202610031107"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="../../js/spieltag-stats.js?v=202610031036"></script>
-<script src="../../js/spieltag-data.js?v=202610031036"></script>
-<script src="../../js/spieltag-ui.js?v=202610031036"></script>
+<script src="../../js/spieltag-stats.js?v=202610031107"></script>
+<script src="../../js/spieltag-data.js?v=202610031107"></script>
+<script src="../../js/spieltag-ui.js?v=202610031107"></script>
 <script>
 /* ===================== Spieltag-Organisation (nur Admin) =====================
    Teilnehmende des Jahres, Personen (Mitglieder + Gäste), Grundgerüst der
@@ -128,7 +128,7 @@ function draw(){
   if(a && a.closest && a.closest("form") && a.closest("#content") && a.type !== "checkbox"){ pending = true; return; }
   pending = false;
   const app = document.getElementById("app");
-  const tabs = [["teilnehmende", "Teilnehmende"], ["personen", "Personen & Mitglieder"], ["geruest", "Grundgerüst"], ["spieltage", "Spieltage"]];
+  const tabs = [["teilnehmende", "Teilnehmende"], ["personen", "Personen & Mitglieder"], ["material", "Material & Helfer"], ["geruest", "Grundgerüst"], ["spieltage", "Spieltage"], ["aenderungen", "Änderungen"]];
   app.innerHTML = `
     <div class="topbar">
       <span class="crumbs"><a href="../../">MST Ermatingen</a> / <a href="../${D.test ? "?test" : ""}">Spieltag</a> / Organisation</span>
@@ -159,6 +159,8 @@ function draw(){
   if(tab === "teilnehmende") viewParticipants(c);
   else if(tab === "personen") viewPersons(c);
   else if(tab === "geruest") viewCatalog(c);
+  else if(tab === "material") viewMaterial(c);
+  else if(tab === "aenderungen") viewChanges(c);
   else viewYears(c);
   Object.entries(notes).forEach(([id, t]) => { const el = document.getElementById(id); if(el) el.textContent = t; });
 }
@@ -187,8 +189,10 @@ function viewParticipants(c){
       <div class="group-title"><span>Vereinsmitglieder (${members.filter(id => parts.has(id)).length}/${members.length})</span>
         <span><button class="btn-small" data-all="m">alle</button> <button class="btn-small" data-none="m">keine</button></span></div>
       <div class="plist">${members.map(item).join("")}</div>
-      <div class="group-title"><span>Gäste & Ehemalige (${guests.filter(id => parts.has(id)).length}/${guests.length})</span></div>
-      <div class="plist">${guests.map(item).join("")}</div>
+      <div class="group-title"><span>Gäste dieses Jahr (${guests.filter(id => parts.has(id)).length})</span></div>
+      <div class="plist">${guests.filter(id => parts.has(id)).map(item).join("") || '<span class="small muted">noch keine</span>'}</div>
+      <details style="margin-top:10px" ${filter ? "open" : ""}><summary class="group-title" style="cursor:pointer; display:list-item">Alte Gäste & Ehemalige (${guests.filter(id => !parts.has(id)).length})</summary>
+        <div class="plist" style="margin-top:8px">${guests.filter(id => !parts.has(id)).map(item).join("")}</div></details>
       ${Object.keys(signups).length ? `<p class="small muted" style="margin:12px 0 0">✋ = hat sich selbst angemeldet, ✗ = hat selbst abgesagt (${Object.values(signups).filter(x => x.status === "ja").length} / ${Object.values(signups).filter(x => x.status === "nein").length}). Anhaken/Abhaken hier geht vor.</p>` : ""}
       <p class="rule-note" style="margin:12px 0 0">Kleine Zahl rechts = Startnummer. Neue Vereinsmitglieder unter «Personen & Mitglieder» erfassen. Am Spieltag selbst: hier anhaken – im Spiel erscheint dann «neu dabei → einteilen».</p>
     </div>
@@ -413,6 +417,7 @@ function viewYears(c){
         <div class="group-title" style="margin-top:18px"><span>Funktionen</span></div>
         <label class="check-label" style="padding:4px 0"><input type="checkbox" id="optSignup" ${yearDoc.signupOpen ? "checked" : ""}> Selbst-Anmeldung offen – Mitglieder melden sich mit ihrem Login selbst an/ab</label>
         <label class="check-label" style="padding:4px 0"><input type="checkbox" id="optBeer" ${yearDoc.beerOn ? "checked" : ""}> Bierkapitän – Mitglieder zählen ihre Biere selbst (nur für Eingeloggte sichtbar)</label>
+        <label class="check-label" style="padding:4px 0"><input type="checkbox" id="optEntry" ${yearDoc.entryOpen ? "checked" : ""}> Resultate für alle Mitglieder offen – jede Änderung wird mit Name protokolliert (Reiter «Änderungen»)</label>
         <div class="group-title" style="margin-top:18px"><span>Abschliessen</span></div>
         <p class="small muted">${yearDoc.closed ? `✓ In der Historie (${esc(YEAR)}). Nochmals übernehmen überschreibt den Eintrag.` : "Nach dem Spieltag: Schlussrangliste mit allen Disziplinen in die Historie übernehmen (ewige Rangliste, Tagessieger, Stärke für «ausgeglichen»)."}</p>
         <button class="btn-ghost" id="closeYear">${yearDoc.closed ? "Historie neu schreiben" : "In die Historie übernehmen"}</button>
@@ -459,6 +464,8 @@ function viewYears(c){
   const os = document.getElementById("optSignup"), ob = document.getElementById("optBeer");
   if(os) os.onchange = () => { D.merge(`spieltag/${YEAR}`, { signupOpen:os.checked }); log(`Spieltag ${YEAR}: Selbst-Anmeldung ${os.checked ? "geöffnet" : "geschlossen"}`); };
   if(ob) ob.onchange = () => { D.merge(`spieltag/${YEAR}`, { beerOn:ob.checked }); log(`Spieltag ${YEAR}: Bierkapitän ${ob.checked ? "an" : "aus"}`); };
+  const oe = document.getElementById("optEntry");
+  if(oe) oe.onchange = () => { D.merge(`spieltag/${YEAR}`, { entryOpen:oe.checked }); log(`Spieltag ${YEAR}: Resultate für alle ${oe.checked ? "geöffnet" : "geschlossen"}`); };
   c.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openYear(b.dataset.open));
   c.querySelectorAll("[data-current]").forEach(b => b.onclick = () => D.merge("spieltagMeta/settings", { currentYear:b.dataset.current }));
   const inf = document.getElementById("infoForm");
@@ -489,6 +496,39 @@ function viewYears(c){
     log(`Spieltag ${y} angelegt`);
     openYear(y);
   };
+}
+/* ---------- Material & Helfer pro Station ---------- */
+function viewMaterial(c){
+  const gs = ((yearDoc && yearDoc.games) || []).map(E.normalizeGame)
+    .sort((a, b) => (E.parseTime(a.start) ?? 9999) - (E.parseTime(b.start) ?? 9999));
+  const nameOfMember = mid => { const p = ST.pidOfMember(mid); return p ? ST.nameOf(p) : mid; };
+  let open = 0, total = 0;
+  const rows = gs.map(g => {
+    const items = String(g.material || "").split("\n").map(x => x.trim()).filter(Boolean);
+    const d = gameData[g.id] || {}, done = d.materialDone || {}, lead = (d.leaders || []).map(nameOfMember);
+    total += items.length; open += items.filter((_, i) => !done[i]).length;
+    return `<div class="fit-row"><span class="ic">${esc(g.icon || "🎲")}</span><div style="flex:1"><div class="nm">${esc(g.start || "–")} · ${esc(g.name)}${g.place ? ` <span class="small muted">${esc(g.place)}</span>` : ""}</div>
+      <div class="d">${lead.length ? "Leitung: " + esc(lead.join(", ")) : '<span class="w">keine Stationsleitung</span>'}</div>
+      <div style="margin-top:4px">${items.map((it, i) => `<label class="pitem ${done[i] ? "on" : ""}" style="display:inline-flex; margin:0 6px 6px 0"><input type="checkbox" data-g="${esc(g.id)}" data-i="${i}" ${done[i] ? "checked" : ""}>${esc(it)}${done[i] ? ` <span class="meta">${esc(done[i])}</span>` : ""}</label>`).join("") || '<span class="small muted">kein Material erfasst – im Spieltag unter ✎ Einstellen</span>'}</div></div></div>`;
+  }).join("");
+  c.innerHTML = `<div class="card"><h3>Material & Helfer ${esc(YEAR)} <span class="tag ${open ? "" : "y"}">${total - open}/${total} bereit</span></h3>
+    <p class="rule-note">Material pro Spiel unter «✎ Einstellen», Stationsleitung im Spiel unter «👤 Stationsleitung». Abhaken können Admin und die Stationsleitung.</p>${rows}</div>`;
+  c.querySelectorAll("[data-g]").forEach(cb => cb.onchange = () => D.merge(`spieltag/${YEAR}/games/${cb.dataset.g}`, { materialDone:{ [cb.dataset.i]:cb.checked ? (me.short || me.name || "Admin") : null } }));
+}
+/* ---------- Änderungen (wer hat am Spieltag was eingetragen) ---------- */
+async function viewChanges(c){
+  c.innerHTML = '<div class="card"><p class="muted">lade …</p></div>';
+  if(D.test){ c.innerHTML = '<div class="card"><p class="muted">Im Testmodus wird nichts protokolliert.</p></div>'; return; }
+  try{
+    const snap = await db.collection("log").orderBy("at", "desc").limit(400).get();
+    const list = snap.docs.map(d => d.data()).filter(x => x.area === "spieltag");
+    const gname = id => (((yearDoc && yearDoc.games) || []).find(g => g.id === id) || {}).name || "";
+    c.innerHTML = `<div class="card"><h3>Änderungen am Spieltag</h3><p class="rule-note">Neueste zuerst: wer, wann, was – mit altem und neuem Wert.</p>
+      <div class="tbl-scroll"><table class="rank"><thead><tr><th>Zeit</th><th>Wer</th><th>Was</th><th>vorher</th><th>nachher</th></tr></thead><tbody>
+      ${list.map(x => `<tr><td class="small">${new Date(x.at).toLocaleString("de-CH", { weekday:"short", hour:"2-digit", minute:"2-digit" })}</td><td>${esc(x.byName || x.by)}</td><td>${esc(x.text)}</td>
+        <td class="small muted">${esc(x.before == null ? "" : x.before)}</td><td><b>${esc(x.after == null ? (x.before != null ? "gelöscht" : "") : x.after)}</b></td></tr>`).join("") || '<tr><td colspan="5" class="muted">Noch nichts.</td></tr>'}
+      </tbody></table></div></div>`;
+  }catch(e){ console.error(e); c.innerHTML = '<div class="card"><p class="muted">Konnte nicht geladen werden.</p></div>'; }
 }
 async function closeYear(){
   const gs = (yearDoc.games || []).map(E.normalizeGame);

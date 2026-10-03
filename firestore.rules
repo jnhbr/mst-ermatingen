@@ -7,10 +7,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Admin = Login mit E-Mail/Passwort (Jans Konto aus Firebase Authentication).
-    function isAdmin() {
+    // Vorstand = Login mit E-Mail/Passwort (Konten legt Jan in Firebase Authentication an).
+    // roles/<e-mail> = { role:"admin"|"kassier"|"aktuar", memberId }. Ohne Eintrag = Admin
+    // (Jans Konto) – nur Jan kann Passwort-Konten anlegen.
+    function isVorstand() {
       return request.auth != null
         && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+    function rolePath() {
+      return /databases/$(database)/documents/roles/$(request.auth.token.email);
+    }
+    function role() {
+      return exists(rolePath()) ? get(rolePath()).data.role : 'admin';
+    }
+    function isAdmin()   { return isVorstand() && role() == 'admin'; }
+    function isKassier() { return isVorstand() && role() in ['admin', 'kassier']; }
+    function isAktuar()  { return isVorstand() && role() in ['admin', 'aktuar']; }
+    function vorstandId() {
+      return exists(rolePath()) ? get(rolePath()).data.memberId : 'm10';
     }
     // Mitglied = anonymer Login + gültige Sitzung (Vereinsnummer + Vorname geprüft).
     function sessionPath() {
@@ -23,7 +37,11 @@ service cloud.firestore {
       return get(sessionPath()).data.memberId;
     }
     function isMember() {
-      return isAdmin() || hasSession();
+      return isVorstand() || hasSession();
+    }
+    // Mitgliedsnummer der eingeloggten Person (Vorstand über roles, sonst über die Sitzung)
+    function myId() {
+      return isVorstand() ? vorstandId() : me();
     }
 
     // ---------- Spieltag (minispieltag.web.app) ----------
@@ -47,6 +65,8 @@ service cloud.firestore {
     }
     match /sessions/{uid} {
       allow get, delete: if request.auth != null && request.auth.uid == uid;
+      // Admin entfernt Sitzungen ausgetretener Mitglieder
+      allow list, delete: if isAdmin();
       allow create, update: if request.auth != null && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['key', 'memberId', 'at'])
         && request.resource.data.key is string
@@ -61,29 +81,34 @@ service cloud.firestore {
     // spieltag/<jahr> (+ games/<id>), spieltagHistory/<jahr>
     match /spieltagMeta/{doc}     { allow read: if true; allow write: if isAdmin(); }
     function personOfMe(pid) {
-      return get(/databases/$(database)/documents/spieltagPersons/$(pid)).data.memberId == me();
+      return get(/databases/$(database)/documents/spieltagPersons/$(pid)).data.memberId == myId();
     }
     match /spieltagPersons/{id} {
       allow read: if true;
       allow write: if isAdmin();
       // Mitglied ohne Spielname darf sich selbst anlegen (für die Selbst-Anmeldung)
-      allow create: if hasSession() && id == me()
+      allow create: if isMember() && id == myId()
         && request.resource.data.keys().hasOnly(['name', 'memberId'])
-        && request.resource.data.memberId == me() && request.resource.data.name is string;
+        && request.resource.data.memberId == myId() && request.resource.data.name is string;
     }
     match /spieltag/{year}        { allow read: if true; allow write: if isAdmin(); }
-    // Spiel: Admin alles; Stationsleiter (games/<id>.leaders) nur Resultate eintragen
+    // Spiel: Admin alles; Stationsleiter (games/<id>.leaders) Resultate + Material abhaken;
+    // während «Resultate für alle offen» (spieltag/<jahr>.entryOpen) alle eingeloggten Mitglieder
+    // Resultate und Teamnamen. Jede Änderung landet im Protokoll (log).
     match /spieltag/{year}/games/{id} {
       allow read: if true;
       allow write: if isAdmin();
-      allow update: if hasSession() && me() in resource.data.get('leaders', [])
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['matches', 'scores']);
+      allow update: if isMember() && myId() in resource.data.get('leaders', [])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['matches', 'scores', 'teamNames', 'materialDone']);
+      allow update: if isMember()
+        && get(/databases/$(database)/documents/spieltag/$(year)).data.get('entryOpen', false) == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['matches', 'scores', 'teamNames']);
     }
     // Selbst-Anmeldung: signups/<memberId> = { pid, status:"ja"|"nein", at }, nur solange offen
     match /spieltag/{year}/signups/{mid} {
       allow read: if true;
       allow write: if isAdmin();
-      allow create, update: if hasSession() && mid == me()
+      allow create, update: if isMember() && mid == myId()
         && get(/databases/$(database)/documents/spieltag/$(year)).data.get('signupOpen', false) == true
         && request.resource.data.keys().hasOnly(['pid', 'status', 'at'])
         && request.resource.data.status in ['ja', 'nein']
@@ -93,24 +118,28 @@ service cloud.firestore {
     match /spieltag/{year}/beer/{id} {
       allow read: if isMember();
       allow write: if isAdmin();
-      allow create: if hasSession() && request.resource.data.by == me()
+      allow create: if isMember() && request.resource.data.by == myId()
         && request.resource.data.keys().hasOnly(['pid', 'l', 'at', 'by'])
         && request.resource.data.l in [0.5, 0.33]
         && personOfMe(request.resource.data.pid);
-      allow delete: if hasSession() && resource.data.by == me();
+      allow delete: if isMember() && resource.data.by == myId();
     }
     match /spieltagHistory/{year} { allow read: if true; allow write: if isAdmin(); }
 
-    // ---------- Konfiguration & Änderungsprotokoll ----------
+    // ---------- Konfiguration, Rollen & Änderungsprotokoll ----------
     match /config/{doc} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+    }
+    match /roles/{email} {
       allow read: if isMember();
       allow write: if isAdmin();
     }
     // Jede Änderung schreibt einen Eintrag; lesen kann nur der Admin.
     match /log/{id} {
       allow read, update, delete: if isAdmin();
-      allow create: if isAdmin()
-        || (hasSession() && request.resource.data.by == me());
+      allow create: if (isVorstand() && request.resource.data.by == vorstandId())
+        || (isMember() && request.resource.data.by == myId());
     }
 
     // ---------- Padel ----------
@@ -124,17 +153,17 @@ service cloud.firestore {
     match /padel/{season}/days/{date} {
       allow read: if isMember();
       allow write: if isAdmin();
-      allow create: if hasSession()
-        && request.resource.data.keys().hasOnly([me(), 'extras']);
-      allow update: if hasSession()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([me(), 'extras']);
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly([myId(), 'extras']);
+      allow update: if isMember()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([myId(), 'extras']);
     }
     match /padel/{season}/beer/{id} {
       allow read: if isMember();
       allow write: if isAdmin();
-      allow create: if hasSession() && request.resource.data.by == me();
-      allow update: if hasSession() && resource.data.by == me() && request.resource.data.by == me();
-      allow delete: if hasSession() && resource.data.by == me();
+      allow create: if isMember() && request.resource.data.by == myId();
+      allow update: if isMember() && resource.data.by == myId() && request.resource.data.by == myId();
+      allow delete: if isMember() && resource.data.by == myId();
     }
 
     // ---------- Afterworkbar ----------
@@ -152,30 +181,55 @@ service cloud.firestore {
     match /awb/{year}/shifts/{id} {
       allow read: if isMember();
       allow write: if isAdmin();
-      allow update: if hasSession()
+      allow update: if isMember()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignee', 'assigneeName', 'at'])
-        && ((resource.data.assignee == null && request.resource.data.assignee == me())
-            || (resource.data.assignee == me() && request.resource.data.assignee == null));
+        && ((resource.data.assignee == null && request.resource.data.assignee == myId())
+            || (resource.data.assignee == myId() && request.resource.data.assignee == null));
     }
     // Checkliste und Material: Mitglieder dürfen nur abhaken (mit eigenem Namen).
     match /awb/{year}/{list}/{id} {
       allow read: if isMember() && list in ['tasks', 'material'];
       allow write: if isAdmin() && list in ['tasks', 'material'];
-      allow update: if hasSession() && list in ['tasks', 'material']
+      allow update: if isMember() && list in ['tasks', 'material']
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'doneBy', 'doneByName', 'doneAt'])
-        && (request.resource.data.done == false || request.resource.data.doneBy == me());
+        && (request.resource.data.done == false || request.resource.data.doneBy == myId());
     }
 
     // ---------- GV ----------
-    // gv/<jahr> = Angaben zur GV, gv/<jahr>/chunks/<n> = PDF der Übersicht (Base64-Stücke).
+    // gv/<jahr> = GV (Traktanden, Beschlüsse, Eckdaten), chunks/<n> = PDF (Base64-Stücke),
+    // protokoll/main = Protokoll (Aktuar), antraege/<id> = Traktanden-Vorschläge der Mitglieder.
     // Enthält Finanzen -> nur für eingeloggte Mitglieder.
     match /gv/{year} {
       allow read: if isMember();
-      allow write: if isAdmin();
+      allow write: if isVorstand();
     }
     match /gv/{year}/chunks/{n} {
       allow read: if isMember();
-      allow write: if isAdmin();
+      allow write: if isVorstand();
+    }
+    match /gv/{year}/protokoll/{doc} {
+      allow read: if isMember();
+      allow write: if isAktuar();
+    }
+    match /gv/{year}/antraege/{id} {
+      allow read: if isMember();
+      allow write: if isVorstand();
+      allow create: if isMember() && request.resource.data.by == myId()
+        && request.resource.data.keys().hasOnly(['title', 'text', 'by', 'byName', 'at', 'status'])
+        && request.resource.data.status == 'neu';
+      allow delete: if isMember() && resource.data.by == myId() && resource.data.status == 'neu';
+    }
+
+    // ---------- Finanzen (Kassier) ----------
+    // finance/<gv-jahr> = Vereinsjahr (Anfangsbestand, Kasse, Beitrag),
+    // finance/<gv-jahr>/bookings/<id> = Kontobewegungen, finance/<gv-jahr>/fees/<memberId> = Jahresbeiträge
+    match /finance/{year} {
+      allow read: if isMember();
+      allow write: if isKassier();
+    }
+    match /finance/{year}/{list}/{id} {
+      allow read: if isMember();
+      allow write: if isKassier();
     }
   }
 }

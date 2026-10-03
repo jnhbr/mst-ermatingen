@@ -12,143 +12,153 @@
 <meta name="theme-color" content="#141311">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/mst.css?v=202610031500">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Carlito:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/mst.css?v=202610031107">
 <style>
-  .doc-bar{display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin:0 4px 14px;}
-  .doc-bar .meta{color:var(--muted); font-size:12.5px;}
-  .doc-bar a.btn-ghost{text-decoration:none;}
-  .pages{display:flex; flex-direction:column; align-items:center; gap:14px; margin:0 4px;}
-  .pages canvas{width:100%; max-width:860px; height:auto; border-radius:6px; box-shadow:0 8px 30px rgba(0,0,0,.45); background:#fff;}
-  .upload{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; align-items:end;}
-  .upload input[type=file]{padding:7px;}
+  /* ---------- Bildschirm ---------- */
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr)); gap:12px; align-items:start;}
+  .grid2 .card + .card{margin-top:0;}
+  .stack > .card + .card{margin-top:12px;}
+  .toolbar-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:0 0 14px;}
+  .toolbar-row .spacer{flex:1;}
+  table.lst{border-collapse:collapse; width:100%; font-size:13px;}
+  table.lst th, table.lst td{padding:6px 7px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle;}
+  table.lst th{font-family:var(--font-display); font-weight:400; letter-spacing:.04em; font-size:13px; color:var(--muted);}
+  table.lst td.num, table.lst th.num{text-align:right; font-family:var(--font-mono); white-space:nowrap;}
+  table.lst input, table.lst select{padding:5px 7px; font-size:13px; width:100%;}
+  table.lst tr.total td{border-top:2px solid var(--line-strong); font-weight:700;}
+  .pill{font-family:var(--font-mono); font-size:10.5px; border:1px solid var(--line-strong); border-radius:12px; padding:2px 8px; color:var(--muted); white-space:nowrap;}
+  .pill.ok{color:var(--green); border-color:rgba(95,212,138,.45);}
+  .pill.warn{color:var(--yellow); border-color:var(--yellow);}
+  .kpi-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:12px;}
+  .kpi{background:var(--bg); border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 12px;}
+  .kpi .v{font-family:var(--font-mono); font-size:18px; font-weight:700; color:var(--yellow);}
+  .kpi .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
+  .tk-edit{border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px; margin-bottom:10px; background:var(--bg);}
+  .tk-edit .row{display:flex; gap:8px; align-items:center;}
+  .tk-edit .nr{font-family:var(--font-display); font-size:24px; color:var(--yellow); width:28px; text-align:center;}
+  .tk-edit input.ti{flex:1; font-weight:600;}
+  .tk-edit textarea{width:100%; min-height:90px; margin-top:8px; font-size:13px; line-height:1.5; font-family:var(--font-body);}
+  .tk-edit .opts{display:flex; gap:14px; flex-wrap:wrap; margin-top:6px;}
+  .tk-edit .opts label{flex-direction:row; align-items:center; gap:6px; text-transform:none; letter-spacing:0; font-size:12.5px;}
+  .tokens{font-size:11.5px; color:var(--muted-2); line-height:1.8;}
+  .tokens code{font-family:var(--font-mono); color:var(--yellow); background:var(--bg); padding:0 4px; border-radius:4px;}
+  .antrag{border-bottom:1px solid var(--line); padding:9px 0; font-size:13.5px;}
+  .antrag .meta{font-size:11.5px; color:var(--muted);}
+  .prot-tk{border:1px solid var(--line); border-radius:var(--radius-sm); padding:12px; margin-bottom:10px; background:var(--bg);}
+  .prot-tk h4{font-family:var(--font-display); font-weight:400; font-size:20px; letter-spacing:.03em; margin:0 0 6px;}
+  .prot-tk h4 span{color:var(--yellow); margin-right:8px;}
+  .prot-tk textarea{width:100%; min-height:70px; font-family:var(--font-body); font-size:13.5px; line-height:1.5;}
+  .prot-tk .q{display:grid; grid-template-columns:minmax(120px,1fr) 2fr; gap:8px; align-items:start; margin:6px 0; font-size:13px;}
+  .prot-tk .q textarea{min-height:42px;}
+  .vote{display:flex; gap:8px; flex-wrap:wrap; align-items:end; margin:8px 0;}
+  .vote input{width:70px;}
+  .att{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr)); gap:6px;}
+  .att .p{display:flex; justify-content:space-between; align-items:center; gap:6px; border:1px solid var(--line); border-radius:6px; padding:5px 8px; font-size:13px;}
+  .att .seg2{display:flex; gap:4px;}
+  .att .seg2 button{padding:3px 8px; font-size:11.5px;}
+  .save-note{font-size:11.5px; color:var(--muted-2); font-family:var(--font-mono);}
+  .muted{color:var(--muted);} .small{font-size:12px;}
+  .paper{overflow:hidden; padding:4px 0;}
+  .paper .page{box-shadow:0 6px 30px rgba(0,0,0,.45); margin:0 auto 16px;}
+  .pages canvas{display:block; width:100%; max-width:860px; margin:0 auto 12px; border-radius:6px; background:#fff;}
+  .upload{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; align-items:end;}
+  .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; align-items:end;}
+  .form-grid input, .form-grid select{width:100%;}
+
+  /* ---------- Druckseiten (A4) im Stil der GV-Übersicht 2026: Calibri, Zeilenabstand 1,5 ---------- */
+  .page{width:210mm; min-height:297mm; padding:13mm 15mm 20mm; box-sizing:border-box; position:relative; background:#fff; color:#231F20;
+    font-family:Calibri,Carlito,"Barlow",sans-serif; font-size:10.5pt; line-height:1.5; text-align:left; font-synthesis:weight;}
+  .page *{box-sizing:border-box;}
+  .page .bar{background:#231F20; color:#FFF200; padding:4mm 6mm; display:flex; justify-content:space-between; align-items:center; border-bottom:1.6mm solid #FFF200; margin-bottom:5mm;}
+  .page .bar h1{font-family:inherit; font-size:19pt; letter-spacing:.05em; margin:0; font-weight:700; line-height:1.2; text-transform:uppercase; color:#FFF200;}
+  .page .bar .sub{color:#fff; font-size:8.5pt;}
+  .page .bar img{height:15mm;}
+  .page .lbl{display:inline-block; background:#FFF200; color:#231F20; font-weight:700; font-size:8.5pt; letter-spacing:.08em; padding:0 2mm; text-transform:uppercase; margin:4mm 0 2mm;}
+  .page table.t{border-collapse:collapse; width:100%;}
+  .page table.t th{background:#231F20; color:#FFF200; text-align:left; font-size:8.5pt; padding:1.2mm 2mm; font-weight:700;}
+  .page table.t td{border-bottom:.2mm solid #d9d9d9; padding:.8mm 2mm; font-size:9pt; vertical-align:top; line-height:1.4;}
+  .page table.t td.num, .page table.t th.num{text-align:right; white-space:nowrap;}
+  .page table.t td.c, .page table.t th.c{text-align:center;}
+  .page table.t tr.sum td{font-weight:700; border-top:.5mm solid #231F20;}
+  .page table.t tr.hl td{background:#231F20; color:#FFF200; font-weight:700;}
+  .page table.t tr.it td{font-style:italic;}
+  .page .small{font-size:8pt; color:#777;}
+  .page .foot{position:absolute; bottom:8mm; left:15mm; right:15mm; display:flex; justify-content:space-between; align-items:center; font-size:7.5pt; color:#777; border-top:.5mm solid #FFF200; padding-top:2mm;}
+  .page .foot img{height:7mm;}
+  .page.title{display:flex; flex-direction:column; align-items:center; padding-top:42mm;}
+  .page.title .ed{font-size:14pt;}
+  .page.title .club{font-size:30pt; font-weight:700; margin:1mm 0;}
+  .page.title .when{font-size:13pt;}
+  .page.title .tag{background:#FFF200; font-weight:700; letter-spacing:.12em; font-size:9pt; padding:.5mm 3mm; margin-top:6mm;}
+  .page.title .art{position:absolute; left:15mm; right:15mm; bottom:20mm; display:flex; justify-content:center; align-items:flex-end; gap:4mm;}
+  .page.title .art .logo{height:105mm;} .page.title .art .dog{height:118mm;}
+  .page .tk{display:grid; grid-template-columns:11mm 1fr; gap:4mm; padding:2mm 0 3mm; border-bottom:.2mm solid #e5e5e5; break-inside:avoid;}
+  .page .tk .n{background:#FFF200; font-weight:700; font-size:13pt; text-align:center; height:9mm; line-height:9mm;}
+  .page .tk .h{font-weight:700; font-size:11pt;}
+  .page ul{margin:.5mm 0 0; padding-left:5mm; list-style:square;}
+  .page ul ul{list-style:none; padding-left:6mm;}
+  .page ul ul li::before{content:"– "; color:#999;}
+  .page .arrow{color:#777; font-style:italic;}
+  .page .kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:3mm; margin-bottom:1mm;}
+  .page .kpis > div{background:#f1f1ee; padding:2.5mm 3mm;}
+  .page .kpis .l{font-size:7pt; letter-spacing:.08em; text-transform:uppercase; color:#555;}
+  .page .kpis .v{font-size:14pt; font-weight:700; line-height:1.3;}
+  .page .kpis .s{font-size:7.5pt; color:#777;}
+  .page .kpis .neg{color:#d0021b;}
+  .page .kpis .hi{background:#231F20; color:#fff;} .page .kpis .hi .v{color:#FFF200;} .page .kpis .hi .l, .page .kpis .hi .s{color:#ccc;}
+  .page .flow td:first-child{width:7mm; font-weight:700; text-align:center;}
+  .page .bars td{padding:1.3mm 2mm; border-bottom:.2mm solid #eee; font-size:9pt;}
+  .page .bars .bar-cell{width:42%;}
+  .page .bars .b{height:5mm; background:#FFF200;}
+  .page .bars .b.dark{background:#231F20;}
+  .page .boxes{display:grid; grid-template-columns:repeat(4,1fr); gap:3mm;}
+  .page .boxes.three{grid-template-columns:repeat(3,1fr);}
+  .page .boxes > div{border:.3mm solid #231F20;}
+  .page .boxes .bh{background:#231F20; color:#FFF200; font-size:7.5pt; font-weight:700; letter-spacing:.08em; padding:1mm 2.5mm; text-transform:uppercase;}
+  .page .boxes .bb{padding:2mm 2.5mm; font-size:9pt;}
+  .page .boxes .big{font-size:13pt; font-weight:700;}
+  .page .merci{margin-top:8mm; background:#231F20; color:#fff; padding:6mm 7mm; display:flex; justify-content:space-between; align-items:center;}
+  .page .merci b{color:#FFF200; font-size:15pt; display:block;}
+  .page .merci img{height:24mm;}
+  .page .box-y{background:#231F20; color:#fff; padding:3mm 4mm;} .page .box-y b{color:#FFF200;}
+  .page .chk{display:inline-block; width:3.4mm; height:3.4mm; border:.3mm solid #231F20; vertical-align:-.5mm; margin-right:1mm; text-align:center; line-height:2.8mm; font-size:8pt; font-weight:700;}
+  .page .lines{border-bottom:.2mm solid #bbb; height:6.5mm;}
+  .page .notes{white-space:pre-wrap; font-size:10pt; border-left:1mm solid #FFF200; padding:.5mm 3mm; margin:1.5mm 0;}
+  .page .notes-h{font-size:7.5pt; letter-spacing:.1em; color:#777; text-transform:uppercase; margin-top:2mm;}
+  .page .votebox{background:#f1f1ee; padding:2mm 3mm; margin:2mm 0; font-size:9.5pt;}
+  .page .eck{width:100%; border-collapse:collapse;}
+  .page .eck td{border-bottom:.2mm solid #999; padding:1.2mm 2mm; font-size:9.5pt;}
+  .page .eck td.k{font-weight:700; width:20%;}
+  .page .tkp{margin-top:5mm; break-inside:avoid;}
+  .page .tkp .hd{display:grid; grid-template-columns:11mm 1fr; gap:3mm; align-items:center; background:#f1f1ee;}
+  .page .tkp .hd .n{background:#FFF200; font-weight:700; font-size:13pt; text-align:center; height:9mm; line-height:9mm;}
+  .page .tkp .hd .h{font-weight:700; font-size:11pt;}
+  .page .rb{display:grid; grid-template-columns:repeat(2,1fr); gap:3mm;}
+  .page .rb > div{background:#f1f1ee; padding:3mm 4mm;}
+  .page .rb h3{margin:0 0 1mm; font-size:10pt; text-transform:uppercase; letter-spacing:.06em;}
+  .page .rb p{margin:0; font-size:9.5pt;}
+  #printRoot{display:none;}
+  @page{size:A4; margin:0;}
+  @media print{
+    html, body{background:#fff !important; min-height:0;}
+    body > *:not(#printRoot){display:none !important;}
+    #printRoot{display:block;}
+    #printRoot .page{box-shadow:none; margin:0; break-after:page; page-break-after:always; zoom:1 !important;}
+    #printRoot .page:last-child{break-after:auto; page-break-after:auto;}
+  }
 </style>
 </head>
 <body>
 <div id="gate"><div class="loading">lade …</div></div>
-<div id="app"><div class="loading">lade …</div></div>
+<div id="app"><div class="loading">lade GV …</div></div>
+<div id="printRoot"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="../js/mst.js?v=202610031500" data-base="../"></script>
-<script>
-/* GV-Übersicht: PDF liegt in Firestore (gv/<jahr> + gv/<jahr>/chunks/<n>, Base64),
-   weil das Repo öffentlich ist und die Übersicht Finanzen enthält. Nur für Mitglieder. */
-pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-const CHUNK = 700000;
-let me = null, years = [], YEAR = null, blobUrl = null;
-
-MST.start(async (user) => {
-  me = user;
-  const snap = await db.collection("gv").get();
-  years = snap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b) => b.id.localeCompare(a.id));
-  openYear(years[0] && years[0].id);
-});
-
-function shell(inner){
-  const app = document.getElementById("app");
-  const picker = years.length > 1 ? `<select class="season-select" id="yearSelect">${years.map(y => `<option value="${y.id}" ${y.id===YEAR?"selected":""}>GV ${y.id}</option>`).join("")}</select>` : "";
-  app.innerHTML = `
-    <div class="topbar"><span class="crumbs"><a href="../">MST Ermatingen</a> / GV</span><div id="userbar"></div></div>
-    <div class="hero">
-      <div class="hero-left">
-        <img class="hero-logo" src="../assets/logo.png" alt="MST Ermatingen Wappen">
-        <div class="hero-titles">
-          <span class="eyebrow">Generalversammlung${YEAR ? " " + esc(YEAR) : ""}</span>
-          <h1 class="hero-title">GV-Übersicht</h1>
-          <p class="hero-sub">Traktanden, Finanzen, Kontobewegungen und Beschlüsse – nur für Mitglieder</p>
-          ${picker}
-        </div>
-      </div>
-    </div>
-    <div class="court-line"></div>
-    ${inner}
-    ${me.admin ? adminCard() : ""}`;
-  MST.renderUserBar();
-  const ys = document.getElementById("yearSelect");
-  if(ys) ys.onchange = () => openYear(ys.value);
-  const up = document.getElementById("uploadForm");
-  if(up) up.onsubmit = upload;
-}
-
-async function openYear(y){
-  YEAR = y;
-  if(!y){ shell('<div class="card" style="margin:0 4px;"><p class="rule-note" style="margin:0;">Noch keine GV-Übersicht hochgeladen.</p></div>'); return; }
-  const g = years.find(x => x.id === y);
-  shell('<div class="loading">lade Übersicht …</div>');
-  try{
-    const parts = await Promise.all([...Array(g.chunks).keys()].map(i => db.collection("gv").doc(y).collection("chunks").doc(String(i)).get()));
-    const bin = atob(parts.map(p => p.data().data).join(""));
-    const bytes = new Uint8Array(bin.length);
-    for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    if(blobUrl) URL.revokeObjectURL(blobUrl);
-    blobUrl = URL.createObjectURL(new Blob([bytes], { type:"application/pdf" }));
-    shell(`
-      <div class="doc-bar">
-        <span class="meta">${esc(g.title || "GV-Übersicht")}${g.date ? " · " + esc(g.date.split("-").reverse().join(".")) : ""}</span>
-        <a class="btn-ghost" href="${blobUrl}" download="${esc(g.fileName || "GV_Uebersicht.pdf")}">PDF herunterladen</a>
-      </div>
-      <div class="pages" id="pages"></div>`);
-    const pdf = await pdfjsLib.getDocument({ data:bytes }).promise;
-    const box = document.getElementById("pages");
-    for(let n = 1; n <= pdf.numPages; n++){
-      const page = await pdf.getPage(n);
-      const scale = Math.min(2.5, (Math.min(860, box.clientWidth) / page.getViewport({ scale:1 }).width) * (window.devicePixelRatio || 1));
-      const vp = page.getViewport({ scale });
-      const c = document.createElement("canvas");
-      c.width = vp.width; c.height = vp.height;
-      box.appendChild(c);
-      await page.render({ canvasContext:c.getContext("2d"), viewport:vp }).promise;
-    }
-  }catch(e){
-    console.error(e);
-    shell('<div class="card" style="margin:0 4px;"><p class="rule-note" style="margin:0;">Übersicht konnte nicht geladen werden.</p></div>');
-  }
-}
-
-function adminCard(){
-  const next = String(new Date().getFullYear());
-  return `<div class="card admin-card" style="margin:18px 4px 0;">
-    <h3>Admin · Übersicht hochladen</h3>
-    <p class="rule-note" style="margin:0 0 12px;">PDF der GV-Übersicht (max. ca. 5 MB). Gleiches Jahr nochmals hochladen ersetzt die bisherige Datei.</p>
-    <form id="uploadForm" class="upload">
-      <label>Jahr<input name="year" value="${esc(YEAR || next)}" pattern="\\d{4}" required></label>
-      <label>Titel<input name="title" value="${esc((years.find(x => x.id === YEAR) || {}).title || "Generalversammlung MST Ermatingen")}" required></label>
-      <label>Datum der GV<input name="date" type="date"></label>
-      <label>PDF<input name="file" type="file" accept="application/pdf" required></label>
-      <button class="btn-primary" type="submit">Hochladen</button>
-    </form>
-    <p class="form-msg rule-note" id="upMsg" style="margin:10px 0 0;"></p>
-  </div>`;
-}
-
-async function upload(e){
-  e.preventDefault();
-  const f = e.target, msg = document.getElementById("upMsg");
-  const file = f.file.files[0], y = f.year.value.trim();
-  if(!file) return;
-  if(file.size > 5 * 1024 * 1024){ msg.textContent = "Die Datei ist zu gross (max. 5 MB)."; return; }
-  msg.textContent = "lade hoch …";
-  try{
-    const buf = new Uint8Array(await file.arrayBuffer());
-    let bin = ""; for(let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
-    const b64 = btoa(bin);
-    const n = Math.ceil(b64.length / CHUNK);
-    const ref = db.collection("gv").doc(y);
-    const old = await ref.collection("chunks").get();
-    for(const d of old.docs) if(+d.id >= n) await d.ref.delete();
-    for(let i = 0; i < n; i++) await ref.collection("chunks").doc(String(i)).set({ data:b64.slice(i * CHUNK, (i + 1) * CHUNK) });
-    const meta = { title:f.title.value.trim(), date:f.date.value, fileName:file.name, chunks:n, size:file.size, uploadedAt:Date.now() };
-    await ref.set(meta);
-    MST.log("gv", `GV-Übersicht ${y} hochgeladen (${file.name})`);
-    const i = years.findIndex(x => x.id === y);
-    if(i >= 0) years[i] = { id:y, ...meta }; else years.push({ id:y, ...meta });
-    years.sort((a,b) => b.id.localeCompare(a.id));
-    openYear(y);
-  }catch(err){ console.error(err); msg.textContent = "Hochladen fehlgeschlagen."; }
-}
-</script>
+<script src="../js/mst.js?v=202610031107" data-base="../"></script>
+<script src="../js/gv-app.js?v=202610031107"></script>
 </body>
 </html>

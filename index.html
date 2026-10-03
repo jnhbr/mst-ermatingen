@@ -13,8 +13,8 @@
 <meta name="theme-color" content="#141311">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/mst.css?v=202610031500">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/mst.css?v=202610031107">
 <style>
   .home-hero{position:relative; display:flex; align-items:center; gap:22px; padding:34px 4px 26px; overflow:hidden;}
   .home-hero .logo{width:96px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
@@ -37,7 +37,13 @@
   .tile.active{background:linear-gradient(160deg, var(--yellow-soft), var(--bg-elev) 60%);}
 
   #adminArea{margin:22px 4px 0;}
-  .member-form{display:grid; grid-template-columns:90px 1fr 1fr 1fr auto; gap:10px; align-items:end;}
+  .member-form{display:grid; grid-template-columns:80px 1fr 1fr 1fr 1fr 150px auto; gap:10px; align-items:end;}
+  .member-form select{width:100%;}
+  .log-card summary{cursor:pointer; list-style:none;}
+  .log-card summary::-webkit-details-marker{display:none;}
+  .log-card summary h3::before{content:"▸ "; color:var(--yellow);}
+  .log-card[open] summary h3::before{content:"▾ ";}
+  .small{font-size:12px;}
   @media (max-width:720px){ .member-form{grid-template-columns:1fr 1fr;} .member-form .btn-primary{grid-column:1/-1;} }
   table.members{border-collapse:collapse; width:100%; margin-top:14px; font-size:13px;}
   table.members td, table.members th{padding:7px 8px; border-bottom:1px solid var(--line); text-align:left;}
@@ -97,7 +103,7 @@
       <span class="tile-go">Öffnen →</span>
       <span class="tile-icon">📋</span>
       <span class="tile-title">GV</span>
-      <span class="tile-text">Aktuelle GV-Übersicht: Traktanden, Finanzen, Kontobewegungen.</span>
+      <span class="tile-text">Traktanden, Finanzen &amp; Jahresbeiträge, Mitglieder, Protokoll – druckbar wie die GV-Übersicht.</span>
     </a>
   </div>
 
@@ -108,7 +114,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="js/mst.js?v=202610031500" data-base=""></script>
+<script src="js/mst.js?v=202610031107" data-base=""></script>
 <script>
 MST.start((user) => {
   document.getElementById("greeting").textContent = `Hoi ${user.short}!`;
@@ -116,60 +122,140 @@ MST.start((user) => {
 });
 
 /* ---------- Admin: Mitglieder verwalten ---------- */
-function renderAdmin(){
+const today = () => new Date().toISOString().slice(0, 10);
+const fmtD = iso => iso ? new Date(iso + "T12:00:00").toLocaleDateString("de-CH") : "";
+let roles = [];
+async function renderAdmin(){
   const area = document.getElementById("adminArea");
   area.hidden = false;
-  const rows = Object.entries(MST.directory)
-    .sort((a,b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
-    .map(([id,m]) => `<tr><td>${esc(id.slice(1))}</td><td>${esc(m.name)}</td><td>${esc(m.short)}</td></tr>`).join("");
+  try{ roles = (await db.collection("roles").get()).docs.map(d => Object.assign({ email:d.id }, d.data())); }catch(e){ roles = []; }
+  const all = Object.entries(MST.directory).sort((a,b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)));
+  const active = all.filter(([, m]) => !m.left), former = all.filter(([, m]) => m.left);
+  const row = ([id, m]) => `<tr><td>${esc(id.slice(1))}</td><td>${esc(m.name)}</td><td>${esc(m.alias || "")}</td><td>${esc(m.short)}</td>
+    <td class="small">${m.joined ? "seit " + esc(fmtD(m.joined)) : ""}${m.left ? "ausgetreten " + esc(fmtD(m.left)) : ""}</td>
+    <td style="text-align:right; white-space:nowrap">${m.left
+      ? `<button class="del-btn" data-back="${esc(id)}">wieder aufnehmen</button><button class="del-btn" data-purge="${esc(id)}">endgültig löschen</button>`
+      : `<button class="del-btn" data-edit="${esc(id)}">ändern</button>${id === MST.ADMIN_MEMBER_ID ? "" : `<button class="del-btn" data-leave="${esc(id)}">Austritt</button>`}`}</td></tr>`;
+  const memberOpts = active.map(([id, m]) => `<option value="${esc(id)}">${esc(id.slice(1))} ${esc(m.name)}</option>`).join("");
   area.innerHTML = `
     <div class="card">
       <h3>Mitglieder verwalten</h3>
-      <p class="rule-note" style="margin:0 0 14px;">Neues Mitglied erfassen oder Vorname korrigieren: Nummer + Vorname ergeben das Login. Gleiche Nummer nochmals speichern überschreibt den Eintrag.</p>
+      <p class="rule-note" style="margin:0 0 14px;">Nummer + Vorname ergeben das Login. Gleiche Nummer nochmals speichern überschreibt den Eintrag. Eintritt und Austritt erscheinen automatisch in der GV (Mutationen, Jahresbeitrag).</p>
       <form class="member-form" id="memberForm">
         <label>Nr.<input name="nr" inputmode="numeric" required></label>
         <label>Vorname<input name="vorname" required></label>
         <label>Nachname<input name="nachname"></label>
+        <label>Alias<input name="alias" placeholder="z. B. Coach"></label>
         <label>Kurzname<input name="short" placeholder="z. B. Sven B."></label>
+        <label>Eintritt<input name="joined" type="date" value="${today()}"></label>
         <button class="btn-primary" type="submit">Speichern</button>
       </form>
       <p class="form-msg" id="memberMsg"></p>
       <div class="tbl-scroll"><table class="members">
-        <thead><tr><th>Nr.</th><th>Name</th><th>Kurzname</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <thead><tr><th>Nr.</th><th>Name</th><th>Alias</th><th>Kurzname</th><th></th><th></th></tr></thead>
+        <tbody>${active.map(row).join("")}</tbody>
       </table></div>
+      ${former.length ? `<details style="margin-top:12px"><summary class="rule-note" style="cursor:pointer">Ehemalige (${former.length})</summary>
+        <div class="tbl-scroll"><table class="members"><tbody>${former.map(row).join("")}</tbody></table></div></details>` : ""}
     </div>
     <div class="card">
-      <h3>Änderungsprotokoll</h3>
-      <p class="rule-note" style="margin:0 0 12px;">Wer hat wann was eingetragen, geändert oder gelöscht (neueste zuerst, letzte 300). Sieht nur der Admin.</p>
+      <h3>Vorstand-Logins</h3>
+      <p class="rule-note" style="margin:0 0 10px;">Konto anlegen: <a href="https://console.firebase.google.com/project/minispieltag/authentication/users" target="_blank" rel="noopener">Firebase → Authentication → Nutzer hinzufügen</a> (E-Mail + Startpasswort; selber ändern mit «Passwort vergessen?»). Danach hier die Rolle zuordnen. Ein Konto ohne Eintrag hier ist Admin.</p>
+      <form class="member-form" id="roleForm" style="grid-template-columns:1.4fr 1fr 1fr auto">
+        <label>E-Mail des Kontos<input name="email" type="email" required></label>
+        <label>Mitglied<select name="memberId">${memberOpts}</select></label>
+        <label>Rolle<select name="role"><option value="kassier">Kassier (Finanzen, Beiträge)</option><option value="aktuar">Aktuar (Protokoll, Traktanden)</option><option value="admin">Admin (alles)</option></select></label>
+        <button class="btn-primary" type="submit">Zuordnen</button>
+      </form>
+      <p class="form-msg" id="roleMsg"></p>
+      ${roles.length ? `<table class="members"><tbody>${roles.map(r => `<tr><td>${esc(r.email)}</td><td>${esc((MST.directory[r.memberId] || {}).name || r.memberId)}</td><td>${esc(MST.ROLE_LABEL[r.role] || r.role)}</td>
+        <td style="text-align:right"><button class="del-btn" data-unrole="${esc(r.email)}">entfernen</button></td></tr>`).join("")}</tbody></table>` : ""}
+    </div>
+    <details class="card log-card">
+      <summary><h3 style="display:inline">Änderungsprotokoll</h3> <span class="rule-note">– antippen zum Aufklappen</span></summary>
+      <p class="rule-note" style="margin:10px 0 12px;">Wer hat wann was eingetragen, geändert oder gelöscht (neueste zuerst, letzte 300). Sieht nur der Admin.</p>
       <div id="logList" class="log-list"><p class="form-msg">lade …</p></div>
-    </div>`;
-  loadLog();
-  document.getElementById("memberForm").onsubmit = async (e) => {
+    </details>`;
+  area.querySelector(".log-card").addEventListener("toggle", e => { if(e.target.open) loadLog(); }, { once:true });
+  document.getElementById("memberForm").onsubmit = saveMember;
+  document.getElementById("roleForm").onsubmit = async (e) => {
     e.preventDefault();
-    const f = e.target, msg = document.getElementById("memberMsg");
-    const nr = parseInt(f.nr.value, 10);
-    const vorname = f.vorname.value.trim(), nachname = f.nachname.value.trim();
-    if(!nr || !MST.normalizeVorname(vorname)){ msg.textContent = "Nummer und Vorname braucht es."; return; }
-    const id = "m" + nr;
-    const key = await MST.loginKey(nr, vorname);
-    try{
-      const batch = db.batch();
-      batch.set(db.collection("members").doc(key), { id });
-      batch.set(db.collection("memberDirectory").doc(id), {
-        name: (vorname + " " + nachname).trim(),
-        short: f.short.value.trim() || vorname
-      });
-      await batch.commit();
-      MST.log("verein", `Mitglied ${nr} ${(vorname + " " + nachname).trim()} gespeichert`);
-      msg.textContent = `Gespeichert: ${nr} ${vorname}. Login = Nummer ${nr} + Vorname «${vorname.split(/\s+/)[0]}».`;
-      await MST.loadDirectory();
-      setTimeout(renderAdmin, 1200);
-    }catch(err){
-      console.error(err);
-      msg.textContent = "Speichern fehlgeschlagen.";
-    }
+    const f = e.target, email = f.email.value.trim().toLowerCase();
+    await db.collection("roles").doc(email).set({ role:f.role.value, memberId:f.memberId.value });
+    MST.log("verein", `Vorstand-Login ${email}: ${MST.ROLE_LABEL[f.role.value]} (${MST.nameOf(f.memberId.value)})`);
+    renderAdmin();
   };
+  area.querySelectorAll("[data-unrole]").forEach(b => b.onclick = async () => {
+    if(!confirm(`Rolle für ${b.dataset.unrole} entfernen? Das Konto wäre dann Admin – lösche es danach auch in Firebase, falls es nicht mehr gebraucht wird.`)) return;
+    await db.collection("roles").doc(b.dataset.unrole).delete();
+    renderAdmin();
+  });
+  area.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
+    const id = b.dataset.edit, m = MST.directory[id], f = document.getElementById("memberForm");
+    const parts = m.name.split(" ");
+    f.nr.value = id.slice(1); f.vorname.value = parts[0]; f.nachname.value = parts.slice(1).join(" ");
+    f.alias.value = m.alias || ""; f.short.value = m.short || ""; f.joined.value = m.joined || "";
+    f.scrollIntoView({ behavior:"smooth" });
+  });
+  area.querySelectorAll("[data-leave]").forEach(b => b.onclick = () => leaveMember(b.dataset.leave));
+  area.querySelectorAll("[data-back]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.back, m = MST.directory[id];
+    await db.collection("memberDirectory").doc(id).set({ left:firebase.firestore.FieldValue.delete() }, { merge:true });
+    await db.collection("members").doc(await MST.loginKey(id.slice(1), m.name)).set({ id });
+    MST.log("verein", `${m.name} (${id.slice(1)}) wieder aufgenommen`);
+    await MST.loadDirectory(); renderAdmin();
+  });
+  area.querySelectorAll("[data-purge]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.purge, m = MST.directory[id];
+    if(!confirm(`${m.name} endgültig löschen? Die Nummer ${id.slice(1)} wird frei. In alten Ranglisten/Abrechnungen erscheint dann nur noch die Nummer.`)) return;
+    await db.collection("memberDirectory").doc(id).delete();
+    MST.log("verein", `${m.name} (${id.slice(1)}) endgültig gelöscht`);
+    await MST.loadDirectory(); renderAdmin();
+  });
+}
+async function saveMember(e){
+  e.preventDefault();
+  const f = e.target, msg = document.getElementById("memberMsg");
+  const nr = parseInt(f.nr.value, 10);
+  const vorname = f.vorname.value.trim(), nachname = f.nachname.value.trim();
+  if(!nr || !MST.normalizeVorname(vorname)){ msg.textContent = "Nummer und Vorname braucht es."; return; }
+  const id = "m" + nr;
+  const old = MST.directory[id];
+  if(old && old.name.split(" ")[0].toLowerCase() !== vorname.split(" ")[0].toLowerCase()
+     && !confirm(`Nr. ${nr} gehört ${old.name}. Überschreiben?`)) return;
+  const key = await MST.loginKey(nr, vorname);
+  try{
+    const batch = db.batch();
+    // altes Login (anderer Vorname) entfernen
+    if(old){ const oldKey = await MST.loginKey(nr, old.name); if(oldKey !== key) batch.delete(db.collection("members").doc(oldKey)); }
+    batch.set(db.collection("members").doc(key), { id });
+    batch.set(db.collection("memberDirectory").doc(id), {
+      name:(vorname + " " + nachname).trim(), short:f.short.value.trim() || vorname,
+      alias:f.alias.value.trim(), joined:f.joined.value || (old && old.joined) || null
+    }, { merge:true });
+    await batch.commit();
+    MST.log("verein", old ? `Mitglied ${nr} ${(vorname + " " + nachname).trim()} geändert` : `Eintritt: ${nr} ${(vorname + " " + nachname).trim()} (${fmtD(f.joined.value)})`);
+    msg.textContent = `Gespeichert: ${nr} ${vorname}. Login = Nummer ${nr} + Vorname «${vorname.split(/\s+/)[0]}».`;
+    await MST.loadDirectory();
+    setTimeout(renderAdmin, 1200);
+  }catch(err){ console.error(err); msg.textContent = "Speichern fehlgeschlagen."; }
+}
+/* Austritt: Login weg, laufende Sitzungen beenden, bleibt als «Ehemalig» (Historie, GV-Mutationen) */
+async function leaveMember(id){
+  const m = MST.directory[id];
+  const date = prompt(`Austritt von ${m.name} – Datum (TT.MM.JJJJ):`, new Date().toLocaleDateString("de-CH"));
+  if(!date) return;
+  const p = date.split(".");
+  const iso = p.length === 3 ? `${p[2]}-${p[1].padStart(2, "0")}-${p[0].padStart(2, "0")}` : today();
+  try{
+    const batch = db.batch();
+    batch.delete(db.collection("members").doc(await MST.loginKey(id.slice(1), m.name)));
+    (await db.collection("sessions").where("memberId", "==", id).get()).forEach(d => batch.delete(d.ref));
+    batch.set(db.collection("memberDirectory").doc(id), { left:iso }, { merge:true });
+    await batch.commit();
+    MST.log("verein", `Austritt: ${id.slice(1)} ${m.name} (${fmtD(iso)})`);
+    await MST.loadDirectory(); renderAdmin();
+  }catch(e){ console.error(e); alert("Austritt hat nicht geklappt."); }
 }
 
 async function loadLog(){
@@ -180,7 +266,7 @@ async function loadLog(){
     const fmt = t => new Date(t).toLocaleString("de-CH", { weekday:"short", day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
     el.innerHTML = '<ul>' + snap.docs.map(d => {
       const x = d.data();
-      return `<li><span class="log-time">${fmt(x.at)}</span><span class="log-who">${esc(x.byName || x.by)}</span><span class="log-text">${esc(x.text)}</span></li>`;
+      return `<li><span class="log-time">${fmt(x.at)}</span><span class="log-who">${esc(x.byName || x.by)}</span><span class="log-text">${esc(x.text)}${x.before != null || x.after != null ? ` <span class="small" style="color:var(--muted)">(${esc(x.before == null ? "leer" : x.before)} → ${esc(x.after == null ? "leer" : x.after)})</span>` : ""}</span></li>`;
     }).join("") + '</ul>';
   }catch(e){ console.error(e); el.innerHTML = '<p class="form-msg">Protokoll konnte nicht geladen werden.</p>'; }
 }

@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/mst.css?v=202610021817">
+<link rel="stylesheet" href="css/mst.css?v=202610031200">
 <style>
   .home-hero{position:relative; display:flex; align-items:center; gap:22px; padding:34px 4px 26px; overflow:hidden;}
   .home-hero .logo{width:96px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
@@ -27,6 +27,7 @@
   .tiles{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; margin:0 4px;}
   .tile{position:relative; display:flex; flex-direction:column; gap:6px; min-height:150px; padding:18px; border-radius:var(--radius); background:var(--bg-elev); border:1px solid var(--line); color:var(--white); text-decoration:none; overflow:hidden;}
   a.tile:hover{border-color:var(--yellow);}
+  .tile[hidden]{display:none;}
   a.tile:hover .tile-go{color:var(--yellow);}
   .tile-icon{font-size:26px; line-height:1;}
   .tile-title{font-family:var(--font-display); font-size:22px; text-transform:uppercase; font-weight:600; margin-top:auto;}
@@ -74,12 +75,18 @@
       <span class="tile-title">Padel</span>
       <span class="tile-text">Donnerstag 18:00–19:30 · Padel am See, Kreuzlingen. Anmelden, Gäste, Bierrunden, Abrechnung.</span>
     </a>
-    <div class="tile soon">
-      <span class="tile-go">bald</span>
+    <a class="tile active" href="spieltag/">
+      <span class="tile-go">Öffnen →</span>
       <span class="tile-icon">🏆</span>
       <span class="tile-title">Spieltag</span>
-      <span class="tile-text">Kommt bald.</span>
-    </div>
+      <span class="tile-text">Ermatinger Minispieltag: Spiele, Live-Rangliste und die Historie seit 2020.</span>
+    </a>
+    <a class="tile" href="spieltag/organisation/" id="orgTile" hidden>
+      <span class="tile-go">Admin →</span>
+      <span class="tile-icon">🗂️</span>
+      <span class="tile-title">Spieltag-Organisation</span>
+      <span class="tile-text">Teilnehmende, Gäste, neue Mitglieder, Grundgerüst der Spiele und Spieltage.</span>
+    </a>
     <a class="tile active" href="afterworkbar/">
       <span class="tile-go">Öffnen →</span>
       <span class="tile-icon">🍺</span>
@@ -101,11 +108,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="js/mst.js?v=202610021817" data-base=""></script>
+<script src="js/mst.js?v=202610031200" data-base=""></script>
 <script>
 MST.start((user) => {
   document.getElementById("greeting").textContent = `Hoi ${user.short}!`;
-  if(user.admin) renderAdmin();
+  if(user.admin){ document.getElementById("orgTile").hidden = false; renderAdmin(); }
 });
 
 /* ---------- Admin: Mitglieder verwalten ---------- */

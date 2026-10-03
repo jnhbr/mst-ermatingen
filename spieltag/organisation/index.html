@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spieltag-Organisation · MST Ermatingen</title>
+<link rel="manifest" href="../../manifest.json">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="icon" href="../../assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#141311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/mst.css?v=202610031200">
+<link rel="stylesheet" href="../../css/spieltag.css?v=202610031200">
+<style>
+  .two-col{display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:12px; align-items:start;}
+  @media (max-width:860px){ .two-col{grid-template-columns:1fr;} }
+  .count-big{font-family:var(--font-mono); font-size:34px; font-weight:700; color:var(--yellow); line-height:1;}
+  .count-row{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px;}
+  .plist{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(180px,100%),1fr)); gap:6px;}
+  .pitem{display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:var(--radius-sm); cursor:pointer; font-size:13.5px; text-transform:none; letter-spacing:0; color:var(--white); flex-direction:row;}
+  .pitem input{width:17px; height:17px; accent-color:var(--yellow); padding:0; margin:0;}
+  .pitem.on{border-color:var(--yellow); background:var(--yellow-soft);}
+  .pitem .meta{margin-left:auto; font-size:10.5px; color:var(--muted-2); font-family:var(--font-mono);}
+  .group-title{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--yellow); margin:16px 0 8px; display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .group-title:first-child{margin-top:0;}
+  .inline-form{display:flex; gap:8px; flex-wrap:wrap; align-items:end;}
+  .inline-form input{padding:8px 10px; font-size:14px;}
+  .fit-row{display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px; align-items:flex-start;}
+  .fit-row:last-child{border-bottom:none;}
+  .fit-row .ic{font-size:18px; width:24px; text-align:center;}
+  .fit-row .nm{font-weight:600;}
+  .fit-row .d{color:var(--muted); font-size:12.5px;}
+  .fit-row .w{color:var(--red); font-size:12px;}
+  .grid-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; align-items:end;}
+  .grid-form input, .grid-form select{padding:8px 10px; font-size:14px; width:100%;}
+  .catlist .fit-row{cursor:pointer;}
+  .catlist .fit-row:hover .nm{color:var(--yellow);}
+  .tag{font-family:var(--font-mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border:1px solid var(--line-strong); border-radius:4px; padding:1px 5px; margin-left:6px;}
+  .tag.y{color:var(--yellow); border-color:var(--yellow);}
+  .muted{color:var(--muted);} .small{font-size:12px;}
+  .search{max-width:220px; padding:7px 10px; font-size:13.5px;}
+</style>
+</head>
+<body>
+<div id="gate"><div class="loading">lade …</div></div>
+<div id="app"><div class="loading">lade …</div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../../js/mst.js?v=202610031200" data-base="../../"></script>
+<script src="../../js/spieltag-engine.js?v=202610031200"></script>
+<script src="../../js/spieltag-data.js?v=202610031200"></script>
+<script src="../../js/spieltag-ui.js?v=202610031200"></script>
+<script>
+/* ===================== Spieltag-Organisation (nur Admin) =====================
+   Teilnehmende des Jahres, Personen (Mitglieder + Gäste), Grundgerüst der
+   Disziplinen und Spieltage anlegen/abschliessen. Was hier geändert wird,
+   sieht die Spieltag-Seite sofort. */
+const E = SpieltagEngine, D = SpieltagData;
+let me = null, tab = "teilnehmende", filter = "";
+let settings = {}, YEAR = null, years = [], yearDoc = null, gameData = {}, catalog = [], history = [], directory = {};
+let unsubYear = [];
+
+if(D.test){
+  document.getElementById("gate").hidden = true;
+  start({ id:"test", name:"Test", admin:true });
+} else {
+  MST.start(user => start(user));
+}
+
+function start(user){
+  me = user;
+  if(!me.admin){
+    document.getElementById("app").innerHTML = `<div class="topbar"><span class="crumbs"><a href="../../">MST Ermatingen</a> / Spieltag-Organisation</span><div id="userbar"></div></div>
+      <div class="card" style="margin-top:20px"><h3>Nur für den Admin</h3><p class="muted">Die Organisation des Spieltags macht der Vorstand. Den Spieltag selbst siehst du unter <a href="../">Spieltag</a>.</p></div>`;
+    MST.renderUserBar();
+    return;
+  }
+  D.watchDoc("spieltagMeta/settings", s => { settings = s || {}; if(!YEAR || !years.includes(YEAR)) openYear(settings.currentYear || null); else draw(); });
+  D.watchCollection("spieltag", docs => {
+    years = docs.map(d => d.id).sort();
+    if(!YEAR && years.length) openYear(settings.currentYear || years[years.length - 1]); else draw();
+  });
+  D.watchCollection("spieltagPersons", docs => { ST.persons = {}; docs.forEach(d => ST.persons[d.id] = d.data); draw(); });
+  D.watchDoc("spieltagMeta/catalog", c => { catalog = (c && c.items) || []; draw(); });
+  D.watchCollection("spieltagHistory", docs => { history = docs.map(d => d.data).sort((a, b) => a.year - b.year); draw(); });
+  if(!D.test) D.getCollection("memberDirectory").then(docs => { directory = {}; docs.forEach(d => directory[d.id] = d.data); draw(); }).catch(() => {});
+}
+function openYear(y){
+  unsubYear.forEach(f => f()); unsubYear = [];
+  YEAR = y; yearDoc = null; gameData = {};
+  if(y){
+    unsubYear.push(D.watchDoc(`spieltag/${y}`, d => { yearDoc = d; draw(); }));
+    unsubYear.push(D.watchCollection(`spieltag/${y}/games`, docs => { gameData = {}; docs.forEach(d => gameData[d.id] = d.data); draw(); }));
+  }
+  draw();
+}
+const participants = () => (yearDoc && yearDoc.participants) || [];
+const log = (text) => { if(!D.test) MST.log("spieltag", text); };
+
+/* Statistik pro Person aus der Historie */
+function personStats(){
+  const st = {};
+  history.forEach(y => (y.rows || []).forEach(r => (r.pids || []).forEach(pid => {
+    const s = st[pid] = st[pid] || { n:0, last:null };
+    s.n++; s.last = Math.max(s.last || 0, y.year);
+  })));
+  return st;   // laufende Jahre zählen erst nach dem Abschliessen
+}
+
+/* ---------- Gerüst ---------- */
+let pending = false;
+const notes = {};      // Meldungen, die ein Neuzeichnen überleben: elementId -> Text
+function note(id, text){ notes[id] = text; const el = document.getElementById(id); if(el) el.textContent = text; }
+document.addEventListener("focusout", () => setTimeout(() => { if(pending) draw(); }, 30));
+function draw(){
+  // nicht neu zeichnen, während in einem Formular getippt wird
+  const a = document.activeElement;
+  if(a && a.closest && a.closest("form") && a.closest("#content") && a.type !== "checkbox"){ pending = true; return; }
+  pending = false;
+  const app = document.getElementById("app");
+  const tabs = [["teilnehmende", "Teilnehmende"], ["personen", "Personen & Mitglieder"], ["geruest", "Grundgerüst"], ["spieltage", "Spieltage"]];
+  app.innerHTML = `
+    <div class="topbar">
+      <span class="crumbs"><a href="../../">MST Ermatingen</a> / <a href="../${D.test ? "?test" : ""}">Spieltag</a> / Organisation</span>
+      <div id="userbar"></div>
+    </div>
+    ${D.test ? '<div class="test-banner"><span>🧪 Testmodus – nichts wird gespeichert.</span><a href="./">Testmodus beenden</a></div>' : ""}
+    <div class="hero">
+      <div class="hero-left">
+        <img class="hero-logo" src="../../assets/logo.png" alt="">
+        <div class="hero-titles">
+          <span class="eyebrow">Spieltag · Organisation</span>
+          <h1 class="hero-title">${YEAR ? `${ST.edition(YEAR)}. Minispieltag ${esc(YEAR)}` : "Spieltag"}</h1>
+          <p class="hero-sub">${yearDoc ? esc([ST.fmtDate(yearDoc.date), yearDoc.place].filter(Boolean).join(" · ") || "Datum noch offen") : "noch kein Spieltag angelegt"}</p>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-chip"><span class="num">${participants().length}</span><span class="lbl">angemeldet</span></div>
+        <div class="stat-chip"><span class="num">${Object.keys(ST.persons).length}</span><span class="lbl">Personen</span></div>
+      </div>
+    </div>
+    <div class="court-line"></div>
+    <nav class="tabbar">${tabs.map(([k, l]) => `<button class="tabbtn ${tab === k ? "active" : ""}" data-tab="${k}">${l}</button>`).join("")}</nav>
+    <section class="panel" id="content"></section>`;
+  if(!D.test) MST.renderUserBar();
+  else document.getElementById("userbar").innerHTML = '<span class="user-chip"><span class="admin-tag">Admin</span>Test</span>';
+  app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { tab = b.dataset.tab; Object.keys(notes).forEach(k => delete notes[k]); draw(); });
+  const c = document.getElementById("content");
+  if(tab === "teilnehmende") viewParticipants(c);
+  else if(tab === "personen") viewPersons(c);
+  else if(tab === "geruest") viewCatalog(c);
+  else viewYears(c);
+  Object.entries(notes).forEach(([id, t]) => { const el = document.getElementById(id); if(el) el.textContent = t; });
+}
+
+/* ---------- Teilnehmende ---------- */
+function viewParticipants(c){
+  if(!yearDoc){ c.innerHTML = `<div class="card"><p class="muted">Noch kein Spieltag angelegt – unter «Spieltage» anlegen.</p></div>`; return; }
+  const parts = new Set(participants());
+  const st = personStats();
+  const ids = ST.sortByName(Object.keys(ST.persons)).filter(id => !filter || ST.nameOf(id).toLowerCase().includes(filter.toLowerCase()));
+  const members = ids.filter(id => ST.persons[id].memberId);
+  const guests = ids.filter(id => !ST.persons[id].memberId);
+  const item = id => `<label class="pitem ${parts.has(id) ? "on" : ""}"><input type="checkbox" data-p="${esc(id)}" ${parts.has(id) ? "checked" : ""}>${esc(ST.nameOf(id))}
+    <span class="meta">${st[id] ? st[id].n + "×" : "neu"}</span></label>`;
+  const n = parts.size;
+  c.innerHTML = `<div class="two-col">
+    <div class="card">
+      <div class="count-row"><span class="count-big">${n}</span><span class="muted">angemeldet für ${esc(YEAR)}${n % 2 ? " · ungerade Zahl – geht trotzdem auf (siehe rechts)" : ""}</span></div>
+      <div class="inline-form" style="margin-bottom:6px">
+        <label>Gast dazunehmen<input id="guestName" autocomplete="off" placeholder="Spielname, z. B. Vando"></label>
+        <button class="btn-primary" id="guestAdd">+ Gast</button>
+        <input class="search" id="search" placeholder="suchen …" value="${esc(filter)}" style="margin-left:auto">
+      </div>
+      <p class="form-msg" id="pMsg"></p>
+      <div class="group-title"><span>Vereinsmitglieder (${members.filter(id => parts.has(id)).length}/${members.length})</span>
+        <span><button class="btn-small" data-all="m">alle</button> <button class="btn-small" data-none="m">keine</button></span></div>
+      <div class="plist">${members.map(item).join("")}</div>
+      <div class="group-title"><span>Gäste & Ehemalige (${guests.filter(id => parts.has(id)).length}/${guests.length})</span></div>
+      <div class="plist">${guests.map(item).join("")}</div>
+      <p class="rule-note" style="margin:12px 0 0">Neue Vereinsmitglieder unter «Personen & Mitglieder» erfassen. Am Spieltag selbst: hier anhaken – im Spiel erscheint dann «neu dabei → einteilen».</p>
+    </div>
+    <div class="card"><h3>Geht es auf? (${n} Personen)</h3>${fitList(n)}</div>
+  </div>`;
+  c.querySelectorAll("[data-p]").forEach(cb => cb.onchange = () => toggle([cb.dataset.p], cb.checked));
+  c.querySelector("[data-all]").onclick = () => toggle(members, true);
+  c.querySelector("[data-none]").onclick = () => { if(confirm("Alle Mitglieder abmelden?")) toggle(members, false); };
+  const s = document.getElementById("search");
+  s.oninput = () => { filter = s.value; const pos = s.selectionStart; draw(); const s2 = document.getElementById("search"); s2.focus(); s2.setSelectionRange(pos, pos); };
+  document.getElementById("guestAdd").onclick = addGuest;
+  document.getElementById("guestName").onkeydown = e => { if(e.key === "Enter") addGuest(); };
+}
+function fitList(n){
+  const gs = ((yearDoc && yearDoc.games) || []).map(E.normalizeGame);
+  if(!gs.length) return '<p class="muted">Noch keine Spiele – auf der Spieltag-Seite hinzufügen.</p>';
+  const parts = participants();
+  return gs.map(g => {
+    const units = E.unitCountFor(n, g);
+    const d = gameData[g.id];
+    let warn = "";
+    if(d && d.units && d.units.length && !(E.isSolo(g) && g.mode === "rangliste")){
+      const inUnits = new Set(d.units.flatMap(u => u.members));
+      const fresh = parts.filter(p => !inUnits.has(p)).length;
+      const gone = [...inUnits].filter(p => !parts.includes(p)).length;
+      if(fresh || gone) warn = `Schon ausgelost: ${fresh ? fresh + " neu" : ""}${fresh && gone ? ", " : ""}${gone ? gone + " abgemeldet" : ""} → im Spiel anpassen`;
+    }
+    const too = !E.isSolo(g) ? units < 2 : n < 2;
+    return `<div class="fit-row"><span class="ic">${esc(g.icon || "🎲")}</span><div><div class="nm">${esc(g.name)}</div>
+      <div class="d">${too ? '<span class="w">zu wenige Personen</span>' : esc(E.describeUnits(n, g)) + (E.describeFormat(units, g) ? " · " + esc(E.describeFormat(units, g)) : "")}</div>
+      ${warn ? `<div class="w">${esc(warn)}</div>` : ""}</div></div>`;
+  }).join("");
+}
+async function toggle(ids, on){
+  const set = new Set(participants());
+  ids.forEach(id => on ? set.add(id) : set.delete(id));
+  await D.merge(`spieltag/${YEAR}`, { participants:[...set] });
+  log(`Spieltag ${YEAR}: ${ids.map(i => ST.nameOf(i)).join(", ")} ${on ? "angemeldet" : "abgemeldet"}`);
+}
+async function addGuest(){
+  const inp = document.getElementById("guestName");
+  const name = inp.value.trim();
+  if(!name) return;
+  inp.value = "";
+  const existing = Object.keys(ST.persons).find(id => ST.nameOf(id).toLowerCase() === name.toLowerCase());
+  if(existing){
+    await toggle([existing], true);
+    note("pMsg", `${name} gibt es schon – angemeldet.`);
+    return;
+  }
+  const id = "g_" + ST.slug(name) + "_" + Math.random().toString(36).slice(2, 6);
+  await D.set(`spieltagPersons/${id}`, { name, memberId:null });
+  await toggle([id], true);
+  note("pMsg", `Gast ${name} angelegt und angemeldet.`);
+  const again = document.getElementById("guestName"); if(again) again.focus();
+}
+
+/* ---------- Personen & Mitglieder ---------- */
+function viewPersons(c){
+  const st = personStats();
+  const ids = ST.sortByName(Object.keys(ST.persons));
+  const linked = new Set(Object.values(ST.persons).map(p => p.memberId).filter(Boolean));
+  const missing = Object.entries(directory).filter(([id]) => !linked.has(id) && /^m\d+$/.test(id) && id !== "m999")
+    .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)));
+  c.innerHTML = `<div class="two-col">
+    <div class="card"><h3>Alle Personen</h3>
+      <p class="rule-note">Spielname = Name auf Spielplan und Rangliste. Antippen zum Ändern.</p>
+      <div class="tbl-scroll"><table class="rank"><thead><tr><th>Spielname</th><th>Typ</th><th class="num">Spieltage</th><th class="num">zuletzt</th></tr></thead><tbody>
+      ${ids.map(id => { const p = ST.persons[id], s = st[id];
+        return `<tr class="click" data-edit="${esc(id)}"><td class="who">${esc(p.name)}${participants().includes(id) ? '<span class="tag y">' + esc(YEAR) + "</span>" : ""}</td>
+          <td class="small muted">${p.memberId ? "Mitglied Nr. " + esc(p.memberId.slice(1)) + (directory[p.memberId] ? " · " + esc(directory[p.memberId].name) : "") : "Gast"}</td>
+          <td class="num">${s ? s.n : 0}</td><td class="num">${s ? s.last : "–"}</td></tr>`; }).join("")}
+      </tbody></table></div>
+    </div>
+    <div>
+      <div class="card"><h3>Neues Vereinsmitglied</h3>
+        <p class="rule-note">Legt gleichzeitig das Login für die Vereinsseite an (Nummer + Vorname) und die Person für den Spieltag.</p>
+        <form class="grid-form" id="memberForm">
+          <label>Nr.<input name="nr" inputmode="numeric" required></label>
+          <label>Vorname<input name="vorname" required></label>
+          <label>Nachname<input name="nachname"></label>
+          <label>Kurzname<input name="short" placeholder="für die Vereinsseite"></label>
+          <label>Spielname<input name="spielname" placeholder="für den Spieltag"></label>
+          <label class="check-label"><input type="checkbox" name="dabei" ${yearDoc ? "checked" : "disabled"}> am Spieltag ${esc(YEAR || "")} dabei</label>
+          <button class="btn-primary" type="submit">Speichern</button>
+        </form>
+        <p class="form-msg" id="mMsg"></p>
+      </div>
+      ${missing.length ? `<div class="card"><h3>Mitglieder ohne Spielname</h3>
+        <p class="rule-note">Diese Vereinsmitglieder haben noch nie am Spieltag mitgemacht.</p>
+        ${missing.map(([id, m]) => `<div class="fit-row"><div style="flex:1"><div class="nm">${esc(m.name)}</div><div class="d">Nr. ${esc(id.slice(1))}</div></div>
+          <button class="btn-small" data-adopt="${esc(id)}">als Spieler übernehmen</button></div>`).join("")}</div>` : ""}
+    </div>
+  </div>`;
+  c.querySelectorAll("[data-edit]").forEach(tr => tr.onclick = () => editPerson(tr.dataset.edit));
+  c.querySelectorAll("[data-adopt]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.adopt, m = directory[id];
+    const name = prompt(`Spielname für ${m.name}:`, m.short || m.name.split(" ")[0]);
+    if(!name) return;
+    await D.set(`spieltagPersons/${id}`, { name:name.trim(), memberId:id });
+    log(`Spieltag: ${m.name} als «${name.trim()}» übernommen`);
+  });
+  document.getElementById("memberForm").onsubmit = saveMember;
+}
+async function saveMember(e){
+  e.preventDefault();
+  const f = e.target, msg = document.getElementById("mMsg");
+  const nr = parseInt(f.nr.value, 10);
+  const vorname = f.vorname.value.trim(), nachname = f.nachname.value.trim();
+  if(!nr || !MST.normalizeVorname(vorname)){ msg.textContent = "Nummer und Vorname braucht es."; return; }
+  const id = "m" + nr;
+  if(directory[id] && !confirm(`Nr. ${nr} gehört schon ${directory[id].name}. Überschreiben?`)) return;
+  const spielname = f.spielname.value.trim() || f.short.value.trim() || vorname;
+  const key = await MST.loginKey(nr, vorname);
+  // bestehende Spieltag-Person mit diesem Namen (z. B. bisher Gast) übernehmen statt doppelt anlegen
+  const existing = Object.keys(ST.persons).find(pid => !ST.persons[pid].memberId && ST.nameOf(pid).toLowerCase() === spielname.toLowerCase());
+  const pid = ST.persons[id] ? id : existing || id;
+  const ops = [
+    { op:"set", path:`members/${key}`, data:{ id } },
+    { op:"set", path:`memberDirectory/${id}`, data:{ name:(vorname + " " + nachname).trim(), short:f.short.value.trim() || vorname } },
+    { op:"set", path:`spieltagPersons/${pid}`, data:{ name:spielname, memberId:id } }
+  ];
+  if(f.dabei.checked && yearDoc && !participants().includes(pid)) ops.push({ op:"merge", path:`spieltag/${YEAR}`, data:{ participants:participants().concat([pid]) } });
+  try{
+    await D.batch(ops);
+    log(`Neues Mitglied ${nr} ${(vorname + " " + nachname).trim()} (Spielname ${spielname})`);
+    directory[id] = { name:(vorname + " " + nachname).trim(), short:f.short.value.trim() || vorname };
+    f.reset();
+    document.activeElement && document.activeElement.blur();
+    note("mMsg", `Gespeichert: Login = Nummer ${nr} + Vorname «${vorname.split(/\s+/)[0]}».${existing ? ` Bisheriger Gast «${spielname}» ist jetzt Mitglied (Historie bleibt).` : ""}`);
+    draw();
+  }catch(err){ console.error(err); note("mMsg", "Speichern fehlgeschlagen."); }
+}
+function editPerson(id){
+  const p = ST.persons[id];
+  const used = history.some(y => (y.rows || []).some(r => (r.pids || []).includes(id))) || participants().includes(id)
+    || Object.values(gameData).some(d => (d.units || []).some(u => u.members.includes(id)));
+  let dlg = document.getElementById("pDlg");
+  if(!dlg){ dlg = document.createElement("dialog"); dlg.id = "pDlg"; document.body.appendChild(dlg); }
+  dlg.innerHTML = `<form method="dialog">
+    <h3>${esc(p.name)}</h3><p class="dlg-sub">${p.memberId ? "Vereinsmitglied Nr. " + esc(p.memberId.slice(1)) : "Gast"}</p>
+    <label>Spielname<input name="name" value="${esc(p.name)}" required></label>
+    ${p.memberId ? "" : `<label>Ist jetzt Vereinsmitglied mit Nr.<input name="nr" inputmode="numeric" placeholder="leer lassen = bleibt Gast"></label>
+      <p class="rule-note" style="margin:0">Fürs Login dann «Neues Vereinsmitglied» mit derselben Nummer und demselben Spielnamen ausfüllen – die Historie bleibt erhalten.</p>`}
+    <div class="dlg-actions">
+      ${used ? "<span></span>" : '<button type="button" class="btn-danger" id="pDel">Löschen</button>'}
+      <div class="right"><button type="button" class="btn-ghost" id="pCancel">Abbrechen</button><button class="btn-primary" type="submit">Speichern</button></div>
+    </div></form>`;
+  dlg.querySelector("#pCancel").onclick = () => dlg.close();
+  if(!used) dlg.querySelector("#pDel").onclick = async () => { if(confirm(`${p.name} löschen?`)){ await D.remove(`spieltagPersons/${id}`); dlg.close(); } };
+  dlg.querySelector("form").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const upd = { name:f.name.value.trim() || p.name, memberId:p.memberId || null };
+    if(f.nr && f.nr.value.trim()) upd.memberId = "m" + parseInt(f.nr.value, 10);
+    await D.set(`spieltagPersons/${id}`, upd);
+    log(`Spieltag-Person ${p.name} → ${upd.name}${upd.memberId !== p.memberId ? " (Mitglied " + upd.memberId + ")" : ""}`);
+    dlg.close();
+  };
+  dlg.showModal();
+}
+
+/* ---------- Grundgerüst (Disziplinen) ---------- */
+function viewCatalog(c){
+  const played = {};
+  history.forEach(y => (y.disciplines || []).forEach(d => { if(d.catId){ const p = played[d.catId] = played[d.catId] || { n:0, last:0 }; p.n++; p.last = Math.max(p.last, y.year); } }));
+  const inYear = new Set(((yearDoc && yearDoc.games) || []).map(g => g.catId || g.id));
+  const cats = { Einzel:[], Partner:[], Gruppe:[] };
+  catalog.forEach((g, i) => cats[E.category(E.normalizeGame(g))].push({ g, i }));
+  const n = participants().length;
+  c.innerHTML = `<div class="card catlist"><h3>Grundgerüst der Disziplinen</h3>
+    <p class="rule-note">Vorlage für jedes Jahr: Spielform, Modus und Punkte. Auf der Spieltag-Seite kann jedes Spiel fürs Jahr noch angepasst oder gewechselt werden. Antippen zum Bearbeiten.</p>
+    ${Object.entries(cats).map(([k, list]) => list.length ? `<div class="group-title"><span>${k}</span></div>` + list.map(({ g, i }) => {
+      const p = played[g.id];
+      return `<div class="fit-row" data-cat="${i}"><span class="ic">${esc(g.icon || "🎲")}</span><div style="flex:1"><div class="nm">${esc(g.name)}${inYear.has(g.id) ? `<span class="tag y">${esc(YEAR)}</span>` : ""}</div>
+        <div class="d">${esc(E.summary(g))} · max. ${E.normalizeGame(g).maxPoints}</div>
+        <div class="d small">${p ? `${p.n}× gespielt, zuletzt ${p.last}` : "noch nie gespielt"}</div></div>
+        ${yearDoc && !inYear.has(g.id) ? `<button class="btn-small" data-addyear="${i}">+ ${esc(YEAR)}</button>` : ""}</div>`;
+    }).join("") : "").join("")}
+    <div style="margin-top:12px"><button class="btn-ghost" id="newCat">+ Neue Disziplin</button></div>
+  </div>`;
+  c.querySelectorAll("[data-cat]").forEach(row => row.onclick = (e) => {
+    if(e.target.closest("button")) return;
+    const i = +row.dataset.cat;
+    GameDialog.open(catalog[i], { title:`Grundgerüst: ${catalog[i].name}`, participants:n,
+      onSave: async g => { const list = catalog.slice(); list[i] = Object.assign({}, g, { id:catalog[i].id }); delete list[i].catId; await saveCatalog(list); },
+      onDelete: async () => { const list = catalog.slice(); list.splice(i, 1); await saveCatalog(list); } });
+  });
+  c.querySelectorAll("[data-addyear]").forEach(b => b.onclick = async () => {
+    const g = JSON.parse(JSON.stringify(catalog[+b.dataset.addyear]));
+    const list = (yearDoc.games || []).slice();
+    let id = g.id, k = 2; while(list.some(x => x.id === id)) id = g.id + "_" + k++;
+    list.push(Object.assign(g, { id, catId:catalog[+b.dataset.addyear].id }));
+    await D.merge(`spieltag/${YEAR}`, { games:list });
+  });
+  document.getElementById("newCat").onclick = () => GameDialog.open({ name:"", icon:"🎲" }, { title:"Neue Disziplin", participants:n,
+    onSave: async g => {
+      let id = ST.slug(g.name), k = 2; while(catalog.some(x => x.id === id)) id = ST.slug(g.name) + "_" + k++;
+      await saveCatalog(catalog.concat([Object.assign({}, g, { id })]));
+    } });
+}
+async function saveCatalog(list){
+  await D.set("spieltagMeta/catalog", { items:JSON.parse(JSON.stringify(list)) });
+  log("Spieltag: Grundgerüst geändert");
+}
+
+/* ---------- Spieltage ---------- */
+function viewYears(c){
+  const next = Math.max(new Date().getFullYear(), ...years.map(Number), ...history.map(h => h.year)) + (years.includes(String(new Date().getFullYear())) ? 1 : 0);
+  c.innerHTML = `<div class="two-col">
+    <div>
+      ${yearDoc ? `<div class="card"><h3>Spieltag ${esc(YEAR)}</h3>
+        <form class="grid-form" id="infoForm">
+          <label>Datum<input type="date" name="date" value="${esc(yearDoc.date || "")}"></label>
+          <label>Ort<input name="place" value="${esc(yearDoc.place || "")}" placeholder="z. B. Hörnle Konstanz"></label>
+          <button class="btn-primary" type="submit">Speichern</button>
+        </form>
+        <p class="form-msg" id="iMsg"></p>
+        <div class="group-title" style="margin-top:18px"><span>Abschliessen</span></div>
+        <p class="small muted">${yearDoc.closed ? `✓ In der Historie (${esc(YEAR)}). Nochmals übernehmen überschreibt den Eintrag.` : "Nach dem Spieltag: Schlussrangliste mit allen Disziplinen in die Historie übernehmen (ewige Rangliste, Tagessieger, Stärke für «ausgeglichen»)."}</p>
+        <button class="btn-ghost" id="closeYear">${yearDoc.closed ? "Historie neu schreiben" : "In die Historie übernehmen"}</button>
+        <p class="form-msg" id="cMsg"></p>
+      </div>` : ""}
+      <div class="card"><h3>Neuen Spieltag anlegen</h3>
+        <form class="grid-form" id="newYear">
+          <label>Jahr<input name="year" type="number" value="${next}" min="2020" max="2100"></label>
+          <label>Spiele von
+            <select name="games"><option value="">Grundgerüst (${E.DEFAULT_LINEUP.length} Disziplinen 2026)</option>${years.map(y => `<option value="${y}" ${y === YEAR ? "selected" : ""}>Spieltag ${y}</option>`).join("")}</select>
+          </label>
+          <label>Teilnehmende von
+            <select name="parts"><option value="">niemand (leer)</option>${years.map(y => `<option value="${y}" ${y === YEAR ? "selected" : ""}>Spieltag ${y}</option>`).join("")}</select>
+          </label>
+          <button class="btn-primary" type="submit">Anlegen</button>
+        </form>
+        <p class="form-msg" id="nMsg"></p>
+      </div>
+    </div>
+    <div class="card"><h3>Alle Spieltage</h3>
+      ${years.map(y => `<div class="fit-row"><span class="ic">${y === settings.currentYear ? "⭐" : "📅"}</span><div style="flex:1"><div class="nm">${y} · ${ST.edition(y)}. Minispieltag</div>
+        <div class="d">${y === settings.currentYear ? "aktuell auf der Spieltag-Seite" : ""}${y === YEAR ? " · hier geöffnet" : ""}</div></div>
+        ${y !== YEAR ? `<button class="btn-small" data-open="${y}">öffnen</button>` : ""}
+        ${y !== settings.currentYear ? `<button class="btn-small" data-current="${y}">als aktuell</button>` : ""}</div>`).join("") || '<p class="muted">Noch keiner.</p>'}
+      <div class="group-title" style="margin-top:16px"><span>Historie</span></div>
+      ${history.slice().reverse().map(h => `<div class="fit-row"><span class="ic">🏆</span><div><div class="nm">${h.year} · ${h.rows.length} Teilnehmende</div>
+        <div class="d">Sieger: ${esc(h.rows.filter(r => r.rank === 1).map(r => r.name).join(" & "))} · ${h.disciplines.length} Disziplinen</div></div></div>`).join("")}
+    </div>
+  </div>`;
+  c.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openYear(b.dataset.open));
+  c.querySelectorAll("[data-current]").forEach(b => b.onclick = () => D.merge("spieltagMeta/settings", { currentYear:b.dataset.current }));
+  const inf = document.getElementById("infoForm");
+  if(inf) inf.onsubmit = async e => {
+    e.preventDefault();
+    document.activeElement && document.activeElement.blur();
+    await D.merge(`spieltag/${YEAR}`, { date:inf.date.value || null, place:inf.place.value.trim() });
+    note("iMsg", "Gespeichert.");
+  };
+  const cl = document.getElementById("closeYear");
+  if(cl) cl.onclick = closeYear;
+  document.getElementById("newYear").onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, y = String(parseInt(f.year.value, 10));
+    if(years.includes(y)){ note("nMsg", `Spieltag ${y} gibt es schon.`); return; }
+    document.activeElement && document.activeElement.blur();
+    let games;
+    if(f.games.value){
+      const src = await D.getDoc(`spieltag/${f.games.value}`);
+      games = (src && src.games) || [];
+    } else {
+      games = E.DEFAULT_LINEUP.map(id => Object.assign(JSON.parse(JSON.stringify(catalog.find(c => c.id === id) || E.DEFAULT_CATALOG.find(c => c.id === id))), { catId:id }));
+    }
+    let parts = [];
+    if(f.parts.value){ const src = await D.getDoc(`spieltag/${f.parts.value}`); parts = (src && src.participants) || []; }
+    await D.set(`spieltag/${y}`, { year:parseInt(y, 10), edition:ST.edition(y), date:null, place:"", participants:parts, games, closed:false });
+    if(!settings.currentYear || y > settings.currentYear) await D.merge("spieltagMeta/settings", { currentYear:y });
+    log(`Spieltag ${y} angelegt`);
+    openYear(y);
+  };
+}
+async function closeYear(){
+  const gs = (yearDoc.games || []).map(E.normalizeGame);
+  const ctx = { participants:participants() };
+  const ov = E.overall(gs, gameData, ctx);
+  const open = gs.filter(g => !ov.evals[g.id].final);
+  if(open.length && !confirm(`Noch nicht fertig: ${open.map(g => g.name).join(", ")}. Trotzdem mit dem aktuellen Stand übernehmen?`)) return;
+  const pids = [...new Set(participants().concat(ov.rows.filter(r => r.total > 0).map(r => r.pid)))];
+  const rows = pids.map(pid => ({
+    name:ST.nameOf(pid), pids:[pid],
+    pts:gs.map(g => { const v = ov.evals[g.id].personPoints[pid]; return v == null ? null : v; }),
+    total:gs.reduce((s, g) => s + (ov.evals[g.id].personPoints[pid] || 0), 0)
+  })).sort((a, b) => b.total - a.total);
+  rows.forEach((r, i) => r.rank = i > 0 && rows[i - 1].total === r.total ? rows[i - 1].rank : i + 1);
+  await D.set(`spieltagHistory/${YEAR}`, { year:parseInt(YEAR, 10), edition:ST.edition(YEAR), disciplines:gs.map(g => ({ name:g.name, catId:g.catId || g.id })), rows });
+  await D.merge(`spieltag/${YEAR}`, { closed:true });
+  log(`Spieltag ${YEAR} in die Historie übernommen`);
+  note("cMsg", `Übernommen: ${rows.length} Personen, Sieger ${rows.filter(r => r.rank === 1).map(r => r.name).join(" & ")}.`);
+}
+</script>
+</body>
+</html>

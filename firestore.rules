@@ -55,6 +55,16 @@ service cloud.firestore {
            == request.resource.data.memberId;
     }
 
+    // ---------- Spieltag auf der Vereinsseite (/spieltag/) ----------
+    // Öffentlich lesbar (Zuschauer am Spieltag verfolgen live), schreiben nur Admin.
+    // spieltagMeta/{settings|catalog}, spieltagPersons/<id> (nur Spielname + Mitglied-Nr.),
+    // spieltag/<jahr> (+ games/<id>), spieltagHistory/<jahr>
+    match /spieltagMeta/{doc}     { allow read: if true; allow write: if isAdmin(); }
+    match /spieltagPersons/{id}   { allow read: if true; allow write: if isAdmin(); }
+    match /spieltag/{year}        { allow read: if true; allow write: if isAdmin(); }
+    match /spieltag/{year}/games/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /spieltagHistory/{year} { allow read: if true; allow write: if isAdmin(); }
+
     // ---------- Konfiguration & Änderungsprotokoll ----------
     match /config/{doc} {
       allow read: if isMember();

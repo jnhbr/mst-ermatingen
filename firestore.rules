@@ -60,9 +60,45 @@ service cloud.firestore {
     // spieltagMeta/{settings|catalog}, spieltagPersons/<id> (nur Spielname + Mitglied-Nr.),
     // spieltag/<jahr> (+ games/<id>), spieltagHistory/<jahr>
     match /spieltagMeta/{doc}     { allow read: if true; allow write: if isAdmin(); }
-    match /spieltagPersons/{id}   { allow read: if true; allow write: if isAdmin(); }
+    function personOfMe(pid) {
+      return get(/databases/$(database)/documents/spieltagPersons/$(pid)).data.memberId == me();
+    }
+    match /spieltagPersons/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+      // Mitglied ohne Spielname darf sich selbst anlegen (für die Selbst-Anmeldung)
+      allow create: if hasSession() && id == me()
+        && request.resource.data.keys().hasOnly(['name', 'memberId'])
+        && request.resource.data.memberId == me() && request.resource.data.name is string;
+    }
     match /spieltag/{year}        { allow read: if true; allow write: if isAdmin(); }
-    match /spieltag/{year}/games/{id} { allow read: if true; allow write: if isAdmin(); }
+    // Spiel: Admin alles; Stationsleiter (games/<id>.leaders) nur Resultate eintragen
+    match /spieltag/{year}/games/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+      allow update: if hasSession() && me() in resource.data.get('leaders', [])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['matches', 'scores']);
+    }
+    // Selbst-Anmeldung: signups/<memberId> = { pid, status:"ja"|"nein", at }, nur solange offen
+    match /spieltag/{year}/signups/{mid} {
+      allow read: if true;
+      allow write: if isAdmin();
+      allow create, update: if hasSession() && mid == me()
+        && get(/databases/$(database)/documents/spieltag/$(year)).data.get('signupOpen', false) == true
+        && request.resource.data.keys().hasOnly(['pid', 'status', 'at'])
+        && request.resource.data.status in ['ja', 'nein']
+        && personOfMe(request.resource.data.pid);
+    }
+    // Bierkapitän: nur für Eingeloggte sichtbar; jedes Mitglied zählt nur für sich selbst
+    match /spieltag/{year}/beer/{id} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+      allow create: if hasSession() && request.resource.data.by == me()
+        && request.resource.data.keys().hasOnly(['pid', 'l', 'at', 'by'])
+        && request.resource.data.l in [0.5, 0.33]
+        && personOfMe(request.resource.data.pid);
+      allow delete: if hasSession() && resource.data.by == me();
+    }
     match /spieltagHistory/{year} { allow read: if true; allow write: if isAdmin(); }
 
     // ---------- Konfiguration & Änderungsprotokoll ----------

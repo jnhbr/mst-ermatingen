@@ -13,8 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../css/mst.css?v=202610031200">
-<link rel="stylesheet" href="../../css/spieltag.css?v=202610031200">
+<link rel="stylesheet" href="../../css/mst.css?v=202610031500">
+<link rel="stylesheet" href="../../css/spieltag.css?v=202610031036">
 <style>
   .two-col{display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:12px; align-items:start;}
   @media (max-width:860px){ .two-col{grid-template-columns:1fr;} }
@@ -52,10 +52,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../../js/mst.js?v=202610031200" data-base="../../"></script>
-<script src="../../js/spieltag-engine.js?v=202610031200"></script>
-<script src="../../js/spieltag-data.js?v=202610031200"></script>
-<script src="../../js/spieltag-ui.js?v=202610031200"></script>
+<script src="../../js/mst.js?v=202610031500" data-base="../../"></script>
+<script src="../../js/spieltag-engine.js?v=202610031036"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="../../js/spieltag-stats.js?v=202610031036"></script>
+<script src="../../js/spieltag-data.js?v=202610031036"></script>
+<script src="../../js/spieltag-ui.js?v=202610031036"></script>
 <script>
 /* ===================== Spieltag-Organisation (nur Admin) =====================
    Teilnehmende des Jahres, Personen (Mitglieder + Gäste), Grundgerüst der
@@ -63,7 +65,7 @@
    sieht die Spieltag-Seite sofort. */
 const E = SpieltagEngine, D = SpieltagData;
 let me = null, tab = "teilnehmende", filter = "";
-let settings = {}, YEAR = null, years = [], yearDoc = null, gameData = {}, catalog = [], history = [], directory = {};
+let settings = {}, YEAR = null, years = [], yearDoc = null, gameData = {}, signups = {}, catalog = [], history = [], directory = {};
 let unsubYear = [];
 
 if(D.test){
@@ -93,14 +95,16 @@ function start(user){
 }
 function openYear(y){
   unsubYear.forEach(f => f()); unsubYear = [];
-  YEAR = y; yearDoc = null; gameData = {};
+  YEAR = y; yearDoc = null; gameData = {}; signups = {};
   if(y){
     unsubYear.push(D.watchDoc(`spieltag/${y}`, d => { yearDoc = d; draw(); }));
     unsubYear.push(D.watchCollection(`spieltag/${y}/games`, docs => { gameData = {}; docs.forEach(d => gameData[d.id] = d.data); draw(); }));
+    unsubYear.push(D.watchCollection(`spieltag/${y}/signups`, docs => { signups = {}; docs.forEach(d => signups[d.id] = d.data); draw(); }));
   }
   draw();
 }
-const participants = () => (yearDoc && yearDoc.participants) || [];
+const participants = () => ST.effectiveParticipants(yearDoc, signups);
+const signupOf = pid => Object.entries(signups).find(([, x]) => x.pid === pid);
 const log = (text) => { if(!D.test) MST.log("spieltag", text); };
 
 /* Statistik pro Person aus der Historie */
@@ -167,8 +171,9 @@ function viewParticipants(c){
   const ids = ST.sortByName(Object.keys(ST.persons)).filter(id => !filter || ST.nameOf(id).toLowerCase().includes(filter.toLowerCase()));
   const members = ids.filter(id => ST.persons[id].memberId);
   const guests = ids.filter(id => !ST.persons[id].memberId);
-  const item = id => `<label class="pitem ${parts.has(id) ? "on" : ""}"><input type="checkbox" data-p="${esc(id)}" ${parts.has(id) ? "checked" : ""}>${esc(ST.nameOf(id))}
-    <span class="meta">${st[id] ? st[id].n + "×" : "neu"}</span></label>`;
+  const item = id => { const su = signupOf(id);
+    return `<label class="pitem ${parts.has(id) ? "on" : ""}" title="${su ? (su[1].status === "ja" ? "hat sich selbst angemeldet" : "hat selbst abgesagt") : ""}"><input type="checkbox" data-p="${esc(id)}" ${parts.has(id) ? "checked" : ""}>${esc(ST.nameOf(id))}${su ? (su[1].status === "ja" ? " ✋" : " ✗") : ""}
+    <span class="meta">${esc(ST.startNr(id, []))}</span></label>`; };
   const n = parts.size;
   c.innerHTML = `<div class="two-col">
     <div class="card">
@@ -184,7 +189,8 @@ function viewParticipants(c){
       <div class="plist">${members.map(item).join("")}</div>
       <div class="group-title"><span>Gäste & Ehemalige (${guests.filter(id => parts.has(id)).length}/${guests.length})</span></div>
       <div class="plist">${guests.map(item).join("")}</div>
-      <p class="rule-note" style="margin:12px 0 0">Neue Vereinsmitglieder unter «Personen & Mitglieder» erfassen. Am Spieltag selbst: hier anhaken – im Spiel erscheint dann «neu dabei → einteilen».</p>
+      ${Object.keys(signups).length ? `<p class="small muted" style="margin:12px 0 0">✋ = hat sich selbst angemeldet, ✗ = hat selbst abgesagt (${Object.values(signups).filter(x => x.status === "ja").length} / ${Object.values(signups).filter(x => x.status === "nein").length}). Anhaken/Abhaken hier geht vor.</p>` : ""}
+      <p class="rule-note" style="margin:12px 0 0">Kleine Zahl rechts = Startnummer. Neue Vereinsmitglieder unter «Personen & Mitglieder» erfassen. Am Spieltag selbst: hier anhaken – im Spiel erscheint dann «neu dabei → einteilen».</p>
     </div>
     <div class="card"><h3>Geht es auf? (${n} Personen)</h3>${fitList(n)}</div>
   </div>`;
@@ -219,7 +225,9 @@ function fitList(n){
 async function toggle(ids, on){
   const set = new Set(participants());
   ids.forEach(id => on ? set.add(id) : set.delete(id));
-  await D.merge(`spieltag/${YEAR}`, { participants:[...set] });
+  const ops = [{ op:"merge", path:`spieltag/${YEAR}`, data:{ participants:[...set] } }];
+  ids.forEach(id => { const su = signupOf(id); if(su) ops.push({ op:"delete", path:`spieltag/${YEAR}/signups/${su[0]}` }); });
+  await D.batch(ops);
   log(`Spieltag ${YEAR}: ${ids.map(i => ST.nameOf(i)).join(", ")} ${on ? "angemeldet" : "abgemeldet"}`);
 }
 async function addGuest(){
@@ -234,7 +242,7 @@ async function addGuest(){
     return;
   }
   const id = "g_" + ST.slug(name) + "_" + Math.random().toString(36).slice(2, 6);
-  await D.set(`spieltagPersons/${id}`, { name, memberId:null });
+  await D.set(`spieltagPersons/${id}`, { name, memberId:null, nr:ST.nextGuestNr() });
   await toggle([id], true);
   note("pMsg", `Gast ${name} angelegt und angemeldet.`);
   const again = document.getElementById("guestName"); if(again) again.focus();
@@ -249,10 +257,10 @@ function viewPersons(c){
     .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)));
   c.innerHTML = `<div class="two-col">
     <div class="card"><h3>Alle Personen</h3>
-      <p class="rule-note">Spielname = Name auf Spielplan und Rangliste. Antippen zum Ändern.</p>
-      <div class="tbl-scroll"><table class="rank"><thead><tr><th>Spielname</th><th>Typ</th><th class="num">Spieltage</th><th class="num">zuletzt</th></tr></thead><tbody>
+      <p class="rule-note">Spielname = Name auf Spielplan und Rangliste. Nr. = Startnummer (Mitglieder: Vereinsnummer; der Titelverteidiger bekommt am Spieltag automatisch die 1). Antippen zum Ändern.</p>
+      <div class="tbl-scroll"><table class="rank"><thead><tr><th class="num">Nr.</th><th>Spielname</th><th>Typ</th><th class="num">Spieltage</th><th class="num">zuletzt</th></tr></thead><tbody>
       ${ids.map(id => { const p = ST.persons[id], s = st[id];
-        return `<tr class="click" data-edit="${esc(id)}"><td class="who">${esc(p.name)}${participants().includes(id) ? '<span class="tag y">' + esc(YEAR) + "</span>" : ""}</td>
+        return `<tr class="click" data-edit="${esc(id)}"><td class="num">${esc(ST.startNr(id, []))}</td><td class="who">${esc(p.name)}${participants().includes(id) ? '<span class="tag y">' + esc(YEAR) + "</span>" : ""}</td>
           <td class="small muted">${p.memberId ? "Mitglied Nr. " + esc(p.memberId.slice(1)) + (directory[p.memberId] ? " · " + esc(directory[p.memberId].name) : "") : "Gast"}</td>
           <td class="num">${s ? s.n : 0}</td><td class="num">${s ? s.last : "–"}</td></tr>`; }).join("")}
       </tbody></table></div>
@@ -282,7 +290,7 @@ function viewPersons(c){
     const id = b.dataset.adopt, m = directory[id];
     const name = prompt(`Spielname für ${m.name}:`, m.short || m.name.split(" ")[0]);
     if(!name) return;
-    await D.set(`spieltagPersons/${id}`, { name:name.trim(), memberId:id });
+    await D.set(`spieltagPersons/${id}`, { name:name.trim(), memberId:id, nr:id.slice(1) });
     log(`Spieltag: ${m.name} als «${name.trim()}» übernommen`);
   });
   document.getElementById("memberForm").onsubmit = saveMember;
@@ -303,7 +311,7 @@ async function saveMember(e){
   const ops = [
     { op:"set", path:`members/${key}`, data:{ id } },
     { op:"set", path:`memberDirectory/${id}`, data:{ name:(vorname + " " + nachname).trim(), short:f.short.value.trim() || vorname } },
-    { op:"set", path:`spieltagPersons/${pid}`, data:{ name:spielname, memberId:id } }
+    { op:"set", path:`spieltagPersons/${pid}`, data:{ name:spielname, memberId:id, nr:String(nr) } }
   ];
   if(f.dabei.checked && yearDoc && !participants().includes(pid)) ops.push({ op:"merge", path:`spieltag/${YEAR}`, data:{ participants:participants().concat([pid]) } });
   try{
@@ -325,7 +333,8 @@ function editPerson(id){
   dlg.innerHTML = `<form method="dialog">
     <h3>${esc(p.name)}</h3><p class="dlg-sub">${p.memberId ? "Vereinsmitglied Nr. " + esc(p.memberId.slice(1)) : "Gast"}</p>
     <label>Spielname<input name="name" value="${esc(p.name)}" required></label>
-    ${p.memberId ? "" : `<label>Ist jetzt Vereinsmitglied mit Nr.<input name="nr" inputmode="numeric" placeholder="leer lassen = bleibt Gast"></label>
+    <label>Startnummer<input name="nr" value="${esc(p.nr || (p.memberId ? p.memberId.slice(1) : ""))}" placeholder="z. B. 97"></label>
+    ${p.memberId ? "" : `<label>Ist jetzt Vereinsmitglied mit Nr.<input name="mnr" inputmode="numeric" placeholder="leer lassen = bleibt Gast"></label>
       <p class="rule-note" style="margin:0">Fürs Login dann «Neues Vereinsmitglied» mit derselben Nummer und demselben Spielnamen ausfüllen – die Historie bleibt erhalten.</p>`}
     <div class="dlg-actions">
       ${used ? "<span></span>" : '<button type="button" class="btn-danger" id="pDel">Löschen</button>'}
@@ -336,8 +345,8 @@ function editPerson(id){
   dlg.querySelector("form").onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target;
-    const upd = { name:f.name.value.trim() || p.name, memberId:p.memberId || null };
-    if(f.nr && f.nr.value.trim()) upd.memberId = "m" + parseInt(f.nr.value, 10);
+    const upd = { name:f.name.value.trim() || p.name, memberId:p.memberId || null, nr:f.nr.value.trim() || p.nr || "" };
+    if(f.mnr && f.mnr.value.trim()){ upd.memberId = "m" + parseInt(f.mnr.value, 10); upd.nr = String(parseInt(f.mnr.value, 10)); }
     await D.set(`spieltagPersons/${id}`, upd);
     log(`Spieltag-Person ${p.name} → ${upd.name}${upd.memberId !== p.memberId ? " (Mitglied " + upd.memberId + ")" : ""}`);
     dlg.close();
@@ -401,6 +410,9 @@ function viewYears(c){
           <button class="btn-primary" type="submit">Speichern</button>
         </form>
         <p class="form-msg" id="iMsg"></p>
+        <div class="group-title" style="margin-top:18px"><span>Funktionen</span></div>
+        <label class="check-label" style="padding:4px 0"><input type="checkbox" id="optSignup" ${yearDoc.signupOpen ? "checked" : ""}> Selbst-Anmeldung offen – Mitglieder melden sich mit ihrem Login selbst an/ab</label>
+        <label class="check-label" style="padding:4px 0"><input type="checkbox" id="optBeer" ${yearDoc.beerOn ? "checked" : ""}> Bierkapitän – Mitglieder zählen ihre Biere selbst (nur für Eingeloggte sichtbar)</label>
         <div class="group-title" style="margin-top:18px"><span>Abschliessen</span></div>
         <p class="small muted">${yearDoc.closed ? `✓ In der Historie (${esc(YEAR)}). Nochmals übernehmen überschreibt den Eintrag.` : "Nach dem Spieltag: Schlussrangliste mit allen Disziplinen in die Historie übernehmen (ewige Rangliste, Tagessieger, Stärke für «ausgeglichen»)."}</p>
         <button class="btn-ghost" id="closeYear">${yearDoc.closed ? "Historie neu schreiben" : "In die Historie übernehmen"}</button>
@@ -420,6 +432,15 @@ function viewYears(c){
         <p class="form-msg" id="nMsg"></p>
       </div>
     </div>
+    <div>
+    <div class="card"><h3>QR-Code für Zuschauer</h3>
+      <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap">
+        <div id="qrBox" style="background:#fff; padding:10px; border-radius:8px; line-height:0"></div>
+        <div style="flex:1; min-width:180px"><p class="small muted" style="margin:0 0 8px">Führt auf die Live-Seite (Rangliste, «Mein Spieltag», Zeitplan). Für Plakate an den Stationen ausdrucken.</p>
+          <a class="small" id="qrLink" target="_blank"></a>
+          <div class="btn-row" style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap"><button class="btn-ghost" id="qrPrint">Plakat drucken</button><a class="btn-ghost" href="../#tv" target="_blank" style="text-decoration:none">📺 TV-Ansicht öffnen</a></div></div>
+      </div>
+    </div>
     <div class="card"><h3>Alle Spieltage</h3>
       ${years.map(y => `<div class="fit-row"><span class="ic">${y === settings.currentYear ? "⭐" : "📅"}</span><div style="flex:1"><div class="nm">${y} · ${ST.edition(y)}. Minispieltag</div>
         <div class="d">${y === settings.currentYear ? "aktuell auf der Spieltag-Seite" : ""}${y === YEAR ? " · hier geöffnet" : ""}</div></div>
@@ -429,7 +450,15 @@ function viewYears(c){
       ${history.slice().reverse().map(h => `<div class="fit-row"><span class="ic">🏆</span><div><div class="nm">${h.year} · ${h.rows.length} Teilnehmende</div>
         <div class="d">Sieger: ${esc(h.rows.filter(r => r.rank === 1).map(r => r.name).join(" & "))} · ${h.disciplines.length} Disziplinen</div></div></div>`).join("")}
     </div>
+    </div>
   </div>`;
+  const url = new URL("../", location.href).href.split("?")[0];
+  document.getElementById("qrLink").textContent = url; document.getElementById("qrLink").href = url;
+  try{ new QRCode(document.getElementById("qrBox"), { text:url, width:140, height:140, colorDark:"#141311", colorLight:"#ffffff" }); }catch(e){}
+  document.getElementById("qrPrint").onclick = () => printPoster(url);
+  const os = document.getElementById("optSignup"), ob = document.getElementById("optBeer");
+  if(os) os.onchange = () => { D.merge(`spieltag/${YEAR}`, { signupOpen:os.checked }); log(`Spieltag ${YEAR}: Selbst-Anmeldung ${os.checked ? "geöffnet" : "geschlossen"}`); };
+  if(ob) ob.onchange = () => { D.merge(`spieltag/${YEAR}`, { beerOn:ob.checked }); log(`Spieltag ${YEAR}: Bierkapitän ${ob.checked ? "an" : "aus"}`); };
   c.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openYear(b.dataset.open));
   c.querySelectorAll("[data-current]").forEach(b => b.onclick = () => D.merge("spieltagMeta/settings", { currentYear:b.dataset.current }));
   const inf = document.getElementById("infoForm");
@@ -463,21 +492,28 @@ function viewYears(c){
 }
 async function closeYear(){
   const gs = (yearDoc.games || []).map(E.normalizeGame);
-  const ctx = { participants:participants() };
-  const ov = E.overall(gs, gameData, ctx);
+  const ov = E.overall(gs, gameData, { participants:participants() });
   const open = gs.filter(g => !ov.evals[g.id].final);
   if(open.length && !confirm(`Noch nicht fertig: ${open.map(g => g.name).join(", ")}. Trotzdem mit dem aktuellen Stand übernehmen?`)) return;
-  const pids = [...new Set(participants().concat(ov.rows.filter(r => r.total > 0).map(r => r.pid)))];
-  const rows = pids.map(pid => ({
-    name:ST.nameOf(pid), pids:[pid],
-    pts:gs.map(g => { const v = ov.evals[g.id].personPoints[pid]; return v == null ? null : v; }),
-    total:gs.reduce((s, g) => s + (ov.evals[g.id].personPoints[pid] || 0), 0)
-  })).sort((a, b) => b.total - a.total);
-  rows.forEach((r, i) => r.rank = i > 0 && rows[i - 1].total === r.total ? rows[i - 1].rank : i + 1);
-  await D.set(`spieltagHistory/${YEAR}`, { year:parseInt(YEAR, 10), edition:ST.edition(YEAR), disciplines:gs.map(g => ({ name:g.name, catId:g.catId || g.id })), rows });
+  // Rangliste + Teams, Duelle und Rohresultate (für bester Partner, Angstgegner, Rekorde)
+  const doc = SpieltagStats.archiveYear(E, YEAR, gs, gameData, participants(), pid => ST.nameOf(pid));
+  await D.set(`spieltagHistory/${YEAR}`, doc);
   await D.merge(`spieltag/${YEAR}`, { closed:true });
   log(`Spieltag ${YEAR} in die Historie übernommen`);
-  note("cMsg", `Übernommen: ${rows.length} Personen, Sieger ${rows.filter(r => r.rank === 1).map(r => r.name).join(" & ")}.`);
+  note("cMsg", `Übernommen: ${doc.rows.length} Personen, Sieger ${doc.rows.filter(r => r.rank === 1).map(r => r.name).join(" & ")}, ${doc.duels.length} Duelle.`);
+}
+/* A4-Plakat mit QR-Code für die Stationen */
+function printPoster(url){
+  const w = window.open("", "_blank");
+  if(!w) return;
+  w.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Spieltag live</title>
+    <style>@page{size:A4;margin:18mm} body{font-family:Calibri,Arial,sans-serif;text-align:center;color:#141311;line-height:1.5}
+    h1{font-size:44px;margin:10px 0 4px;text-transform:uppercase} p{font-size:22px;margin:6px 0} #q{display:inline-block;margin:28px 0} img.logo{width:140px}</style></head>
+    <body><img class="logo" src="${new URL("../../assets/logo.png", location.href).href}"><h1>${ST.edition(YEAR)}. Minispieltag ${esc(YEAR)}</h1>
+    <p>Rangliste, dein nächstes Spiel und der Zeitplan – live auf dem Handy:</p><div id="q"></div><p style="font-size:16px">${esc(url)}</p>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+    <script>new QRCode(document.getElementById("q"),{text:${JSON.stringify(url)},width:360,height:360});setTimeout(()=>print(),600);<\/script></body></html>`);
+  w.document.close();
 }
 </script>
 </body>

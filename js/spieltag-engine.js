@@ -610,7 +610,9 @@ function evaluate(gIn, data, ctx){
       }
     }
     const fin = leagueDone && placementDone;
+    const played = {}; table.forEach(r => played[r.id] = r.played);
     finalOrder.forEach(r => {
+      if(!fin && !played[r.id]) return;          // noch nicht gespielt → noch keine Punkte
       place[r.id] = { rank:r.rank, points:tierPoints(r.rank - 1, order.length, g), final:fin, label:"" };
     });
     out.status = fin ? "fertig" : out.done ? "läuft" : "bereit";
@@ -740,6 +742,58 @@ function strengthFromHistory(historyYears){
   return out;
 }
 
+// ---------- Zeitplan ----------
+function parseTime(t){
+  const m = /^(\d{1,2})[:.](\d{2})$/.exec(String(t || "").trim());
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+}
+function fmtTime(min){
+  if(min == null) return "";
+  min = Math.round(min);
+  return String(Math.floor(min / 60) % 24).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
+}
+/* Geschätzter Ablauf eines Spiels: alle Partien in Spielreihenfolge,
+   verteilt auf g.fields Felder/Tische à g.matchMinutes Minuten ab g.start.
+   Partien, deren Gegner noch nicht feststehen, sind mit drin (a/b undefined). */
+function timeline(gIn, ev){
+  const g = normalizeGame(gIn);
+  const fields = Math.max(1, parseInt(g.fields, 10) || 1);
+  const mins = Math.max(1, parseInt(g.matchMinutes, 10) || 10);
+  const start = parseTime(g.start);
+  const items = [];
+  const v = (ev && ev.view) || {};
+  const letters = "ABCDEFGHIJKL";
+  if(v.groups){
+    const maxR = Math.max(0, ...v.groups.map(gr => gr.games.reduce((x, m) => Math.max(x, m.round + 1), 0)));
+    for(let r = 0; r < maxR; r++) v.groups.forEach((gr, gi) => gr.games.filter(m => m.round === r)
+      .forEach(m => items.push({ key:m.key, a:m.a, b:m.b, res:m.res, phase:"g" + r, label:`Gruppe ${letters[gi] || gi + 1} · Runde ${r + 1}` })));
+  }
+  if(v.games) v.games.forEach(m => items.push({ key:m.key, a:m.a, b:m.b, res:m.res, phase:"l" + m.round, label:`Runde ${m.round + 1}` }));
+  if(v.placement) v.placement.forEach(m => items.push({ key:m.key, a:m.ready ? m.a : undefined, b:m.ready ? m.b : undefined, res:m.res, phase:"pl", label:`um Platz ${m.places[0]}/${m.places[1]}` }));
+  const br = v.bracket;
+  if(br && br.rounds.length){
+    const R = br.rounds.length;
+    br.rounds.forEach((rd, r) => {
+      if(r === R - 1 && br.third) items.push({ key:br.third.key, a:br.third.a, b:br.third.b, res:br.third.res, done:br.third.winner !== undefined, phase:"k" + r, label:"um Platz 3" });
+      rd.matches.forEach(m => { if(!m.bye) items.push({ key:m.key, a:m.a, b:m.b, res:m.res, done:m.winner !== undefined && m.winner !== null, phase:"k" + r, label:rd.label }); });
+    });
+  } else if(g.mode === "gruppen_ko" && v.qualCount > 1){
+    // K.o. steht noch nicht fest: Platzhalter für die Dauer
+    let left = v.qualCount, r = 0;
+    while(left > 1){ const m = Math.floor(nextPow2(left) / 2) - (nextPow2(left) - left); for(let i = 0; i < Math.max(1, m); i++) items.push({ key:`KO?${r}_${i}`, a:undefined, b:undefined, res:null, phase:"k" + r, label:"K.o." }); left = nextPow2(left) / 2; r++; }
+  }
+  // Jede Runde beginnt erst, wenn die vorherige fertig ist; innerhalb der Runde auf die Felder verteilt
+  let slot = -1, used = fields, phase = null;
+  items.forEach(it => {
+    if(it.phase !== phase || used >= fields){ slot++; used = 0; phase = it.phase; }
+    it.field = ++used; it.slot = slot;
+    it.time = start == null ? null : start + slot * mins;
+    if(it.done === undefined) it.done = !!it.res;
+  });
+  const slots = slot + 1;
+  return { items, start, end:start == null ? null : start + Math.max(1, slots) * mins, fields, mins };
+}
+
 /* Kurzbeschrieb eines Spiels für Karten und Listen. */
 function summary(gIn){
   const g = normalizeGame(gIn);
@@ -757,7 +811,8 @@ const api = {
   teamCountFor, splitSizes, describeUnits, describeFormat, unitCountFor,
   makeUnits, makeGroups, drawGame, pairHistory, roundRobin, standings,
   seedOrder, bracket, koPlacements, tierPoints, evaluate, overall,
-  strengthFromHistory, summary, roundLabel, openMatches, simulate
+  strengthFromHistory, summary, roundLabel, openMatches, simulate,
+  parseTime, fmtTime, timeline
 };
 if(typeof module !== "undefined" && module.exports) module.exports = api;
 else root.SpieltagEngine = api;

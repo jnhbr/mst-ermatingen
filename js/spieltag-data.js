@@ -132,6 +132,36 @@ const ST = {
     return u.name || "Team";
   },
   edition(year){ return parseInt(year, 10) - 2019; },
+  /* Teilnehmende = Liste der Organisation + Selbst-Anmeldungen (ja/nein) der Mitglieder */
+  effectiveParticipants(yearDoc, signups){
+    const set = new Set((yearDoc && yearDoc.participants) || []);
+    Object.values(signups || {}).forEach(s => {
+      if(!s || !s.pid) return;
+      if(s.status === "ja") set.add(s.pid); else if(s.status === "nein") set.delete(s.pid);
+    });
+    return [...set];
+  },
+  pidOfMember(memberId){
+    if(!memberId) return null;
+    if(this.persons[memberId] && this.persons[memberId].memberId === memberId) return memberId;
+    return Object.keys(this.persons).find(id => this.persons[id].memberId === memberId) || null;
+  },
+  /* Titelverteidiger = Sieger des letzten Spieltags in der Historie vor diesem Jahr */
+  champions(history, year){
+    const prev = (history || []).filter(h => h.year < parseInt(year, 10)).sort((a, b) => b.year - a.year)[0];
+    return prev ? (prev.rows || []).filter(r => r.rank === 1).flatMap(r => r.pids || []) : [];
+  },
+  /* Startnummer: Titelverteidiger = 1, sonst Vereinsnummer bzw. Gästenummer */
+  startNr(pid, champs){
+    if((champs || []).includes(pid)) return "1";
+    const p = this.persons[pid] || {};
+    return p.nr || (p.memberId ? p.memberId.slice(1) : "–");
+  },
+  byStartNr(a, b){ return String(a).localeCompare(String(b), "de", { numeric:true }); },
+  nextGuestNr(){
+    const nums = Object.values(this.persons).filter(p => !p.memberId).map(p => parseInt(p.nr, 10)).filter(n => !isNaN(n) && n >= 90);
+    return String(nums.length ? Math.max(...nums) + 1 : 90);
+  },
   slug(s){
     return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "x";
   },

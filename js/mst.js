@@ -119,9 +119,20 @@ const MST = {
           <button class="btn-primary" type="submit">Einloggen</button>
           <p class="login-msg" id="loginMsg">${msg ? esc(msg) : ""}</p>
         </form>
+        ${adminMode ? '<button class="link-btn" id="pwReset" type="button">Passwort vergessen?</button><br>' : ""}
         <button class="link-btn" id="switchLogin" type="button">${adminMode ? "← Login für Mitglieder" : "Admin-Login"}</button>
       </div>`;
     document.getElementById("switchLogin").onclick = () => this.showLogin("", !adminMode);
+    const pr = document.getElementById("pwReset");
+    if(pr) pr.onclick = async () => {
+      const email = document.querySelector("#loginForm [name=email]").value.trim();
+      const msgEl = document.getElementById("loginMsg");
+      if(!email){ msgEl.textContent = "Zuerst oben die E-Mail-Adresse eintragen."; return; }
+      try{
+        await auth.sendPasswordResetEmail(email);
+        msgEl.textContent = "Mail zum Zurücksetzen ist unterwegs (auch im Spam schauen).";
+      }catch(e){ console.error(e); msgEl.textContent = "Ging nicht – stimmt die E-Mail-Adresse?"; }
+    };
     document.getElementById("loginForm").onsubmit = async (e) => {
       e.preventDefault();
       const f = e.target, msgEl = document.getElementById("loginMsg");

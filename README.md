@@ -9,6 +9,8 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
   Grundgerüst der Disziplinen, Spieltage anlegen und in die Historie übernehmen
 - `js/spieltag-engine.js` – die ganze Spiel-Logik ohne Firebase (Teams, Gruppen, K.o. mit Freilosen, Liga, Punkte);
   läuft auch in Node (Tests: alle Disziplinen mit 2–41 Personen)
+- `js/spieltag-app.js` – Logik der Spieltag-Seite (Rangliste/Startliste, Spiele, Zeitplan, «Mein Spieltag», Bierkapitän, TV, Historie)
+- `js/spieltag-stats.js` – bester Partner, Angstgegner, Rekorde; `archiveYear()` schreibt beim Abschliessen Rangliste, Teams, Duelle, Rohresultate
 - `js/spieltag-data.js` / `js/spieltag-ui.js` – Datenzugriff (mit Testmodus) und Dialog «Spiel einstellen»
 - `padel/` – Padelgruppe: Verfügbarkeit, Gäste/Mitglieder, Bierrunden, Statistik & Schlussabrechnung
 - `js/mst.js` – Firebase-Init (Projekt `minispieltag`) und Login
@@ -28,7 +30,15 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
 Bis 2.10.2026 lief Padel auf Netlify (mst-padel.netlify.app, Repo `MST-Ermatingen-Padel`); die Daten wurden übernommen.
 
 ## Spieltag
-- Testmodus: `spieltag/?test` bzw. `spieltag/organisation/?test` – liest die echten Daten, Änderungen bleiben
+- Rollen: Zuschauer (ohne Login) sehen alles ausser Bierkapitän. Mitglieder (Login Nummer + Vorname) melden sich selbst an/ab
+  (wenn in der Organisation «Selbst-Anmeldung offen»), sehen «Mein Spieltag», zählen ihre Biere und tragen Resultate
+  an Stationen ein, die sie leiten (`games/<id>.leaders`, nur Felder matches/scores – siehe firestore.rules). Admin: alles.
+- Vor dem ersten Resultat ist die Rangliste eine Startliste nach Startnummer (Titelverteidiger = 1, sonst `spieltagPersons.nr`).
+- Zeitplan: pro Spiel Start, Ort, Felder, Minuten/Partie (Tab «Zeitplan», Admin) → geschätzte Zeit + Feld jeder Partie.
+- TV-Ansicht: `spieltag/#tv` (Rangliste, Als Nächstes, Tagesablauf, Bierkapitän falls eingeloggt; QR-Code).
+- Selbst-Anmeldungen liegen in `spieltag/<jahr>/signups/<memberId>`; Teilnehmende = Liste + Anmeldungen.
+  Bierkapitän: `spieltag/<jahr>/beer/<id>` { pid, l:0.5|0.33, at, by }.
+- Testmodus: `spieltag/?test` (als Admin) bzw. `spieltag/?test&als=m5` (als Mitglied Nr. 5) bzw. `spieltag/organisation/?test` – liest die echten Daten, Änderungen bleiben
   im Browserfenster (Knopf «Zufallsresultate» zum Durchspielen). Ideal zum Ausprobieren vor dem Spieltag.
 - Punkte: Platz 1 = Maximum, letzte Stufe = 1, gleichmässig dazwischen (ergibt bei 7 Stufen 18/15/12/10/7/4/1
   wie im Spielplan 2026). Pro Spiel umstellbar auf eigene Liste oder «Resultat = Punkte».

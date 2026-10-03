@@ -13,8 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/mst.css?v=202610031200">
-<link rel="stylesheet" href="../css/spieltag.css?v=202610031200">
+<link rel="stylesheet" href="../css/mst.css?v=202610031500">
+<link rel="stylesheet" href="../css/spieltag.css?v=202610031036">
 <style>
   /* ---------- Spiele-Übersicht ---------- */
   .cat-title{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--yellow); margin:18px 0 8px;}
@@ -28,7 +28,7 @@
   .gcard-sub{font-size:12.5px; color:var(--muted);}
   .gcard-lead{font-size:12.5px; color:var(--white);}
   .gcard-lead b{color:var(--yellow);}
-  .gcard-admin{display:flex; gap:6px; margin-top:4px;}
+  .gcard-admin{display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;}
   .gcard-admin button{padding:4px 9px;}
   .add-game{display:flex; align-items:center; justify-content:center; min-height:90px; border:1px dashed var(--line-strong); border-radius:var(--radius); color:var(--muted); background:none; cursor:pointer; font-size:14px;}
   .add-game:hover{border-color:var(--yellow); color:var(--yellow);}
@@ -47,6 +47,7 @@
 
   .units{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr)); gap:8px;}
   .unit{background:var(--bg); border:1px solid var(--line); border-radius:var(--radius-sm); padding:8px 10px; font-size:13px;}
+  .unit.mine{border-color:var(--yellow);}
   .unit-name{font-family:var(--font-display); text-transform:uppercase; font-size:12px; color:var(--yellow); letter-spacing:.04em;}
   .unit-name small{color:var(--muted); font-family:var(--font-mono); text-transform:none; letter-spacing:0;}
   .unit-m{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:2px 0;}
@@ -57,6 +58,7 @@
   .match .ma{text-align:right;}
   .match .win{color:var(--yellow); font-weight:600;}
   .match .lose{color:var(--muted);}
+  .match-meta{grid-column:1/-1; text-align:center; font-family:var(--font-mono); font-size:10.5px; color:var(--muted-2); margin-top:-4px;}
   .score{display:flex; align-items:center; gap:4px; font-family:var(--font-mono);}
   .score input{width:46px; padding:5px 4px; text-align:center; font-size:14px; font-family:var(--font-mono);}
   .score .res{min-width:58px; text-align:center; color:var(--white);}
@@ -65,7 +67,6 @@
   .wbtn.win{background:var(--yellow); color:#141311; border-color:var(--yellow); font-weight:700;}
   .round-title{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:12px 0 2px;}
   .round-title:first-child{margin-top:0;}
-  .bye-note{font-size:12px; color:var(--muted-2); padding:4px 0;}
 
   /* K.o.-Raster */
   .bracket{display:flex; gap:14px; overflow-x:auto; padding-bottom:8px;}
@@ -83,23 +84,89 @@
   .bslot.tbd .nm{color:var(--muted-2); font-style:italic;}
   .bslot button.wbtn{padding:2px 7px; font-size:11px;}
 
-  /* Rangliste-Eingabe */
+  /* Tabellen */
+  table.rank input{width:64px; padding:5px 6px; text-align:right; font-family:var(--font-mono); font-size:13.5px;}
   table.rank th.gh{white-space:normal; font-size:10px; line-height:1.2; min-width:52px; max-width:76px; vertical-align:bottom;}
   table.rank th.gh a{color:inherit; text-decoration:none;}
   table.rank th.gh a:hover{color:var(--yellow);}
-  table.rank input{width:64px; padding:5px 6px; text-align:right; font-family:var(--font-mono); font-size:13.5px;}
+  table.rank tr.me td{background:rgba(255,241,57,.06);}
+  .champ{font-size:10px; font-family:var(--font-mono); color:var(--yellow); border:1px solid var(--yellow); border-radius:4px; padding:0 4px; margin-left:6px; vertical-align:middle;}
+  .card-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+  .card-head h3{margin:0;}
+
+  /* Startkarten oben (Anmeldung, Mein Spieltag, Stationen) */
+  .top-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr)); gap:12px; margin-bottom:12px;}
+  .top-cards .card + .card{margin-top:0;}
+  .big-next{font-family:var(--font-display); text-transform:uppercase; font-size:20px; line-height:1.15; margin:2px 0 4px;}
+  .big-next b{color:var(--yellow);}
+  .btn-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+  .ok{color:var(--green);}
+
+  /* Zeitplan */
+  .tl-row{display:grid; grid-template-columns:96px 28px 1fr auto; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+  .tl-row:last-child{border-bottom:none;}
+  .tl-time{font-family:var(--font-mono); color:var(--yellow); font-size:13px;}
+  .tl-time small{color:var(--muted-2);}
+  .tl-row .sub{font-size:12px; color:var(--muted);}
+  .tl-row.click{cursor:pointer;} .tl-row.click:hover .tl-name{color:var(--yellow);}
+  .tl-row.done{opacity:.55;}
+  .tl-edit{display:grid; grid-template-columns:28px 1fr 92px 1fr 70px 70px; gap:6px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .tl-edit input{padding:6px 8px; font-size:13px; width:100%;}
+  .tl-edit.head{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); border-bottom:1px solid var(--line-strong);}
+  @media (max-width:640px){ .tl-edit{grid-template-columns:28px 1fr 1fr;} .tl-edit.head{display:none;} .tl-row{grid-template-columns:70px 24px 1fr;} .tl-row .chip{display:none;} }
+
+  /* Bierkapitän */
+  .beer-btns{display:flex; gap:10px; flex-wrap:wrap; margin:8px 0;}
+  .beer-btn{flex:1; min-width:120px; font-size:20px; padding:16px 10px;}
+  .beer-sum{font-family:var(--font-mono); font-size:28px; color:var(--yellow); font-weight:700;}
+  .beer-log li{display:flex; justify-content:space-between; gap:8px; padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px;}
+  .beer-log ul{list-style:none; margin:0; padding:0; max-height:260px; overflow:auto;}
 
   /* Historie */
   .hist-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr)); gap:12px; align-items:start;}
+  .hist-grid .card + .card{margin-top:12px;}
   .year-pills{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
   .matrix td.y{text-align:center; font-family:var(--font-mono); color:var(--muted-2);}
   .matrix td.y.on{color:var(--yellow);}
-  .winner-list li{display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
-  .winner-list ul{list-style:none; margin:0; padding:0;}
-  .winner-list .yr{font-family:var(--font-mono); color:var(--muted);}
-  .winner-list b{color:var(--yellow);}
+  .list-plain{list-style:none; margin:0; padding:0;}
+  .list-plain li{display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+  .list-plain li:last-child{border-bottom:none;}
+  .list-plain .yr{font-family:var(--font-mono); color:var(--muted);}
+  .list-plain b{color:var(--yellow); font-weight:600;}
+  .rec-title{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:14px 0 2px;}
+  .rec-title:first-child{margin-top:0;}
   .muted{color:var(--muted);}
   .small{font-size:12px;}
+
+  /* ---------- TV-Ansicht ---------- */
+  body.tv-mode{overflow:hidden;}
+  body.tv-mode #app{max-width:none; padding:0;}
+  .tv{position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr auto; padding:2.2vh 2.6vw; gap:1.6vh; background:radial-gradient(1400px 700px at 10% -10%, rgba(255,241,57,.09), transparent 60%), var(--bg);}
+  .tv-head{display:flex; align-items:center; gap:2vw;}
+  .tv-head img{height:9vh;}
+  .tv-title{font-family:var(--font-display); text-transform:uppercase; font-size:5vh; line-height:1; font-weight:700;}
+  .tv-eyebrow{font-family:var(--font-mono); color:var(--yellow); letter-spacing:.14em; font-size:1.6vh; text-transform:uppercase;}
+  .tv-clock{margin-left:auto; font-family:var(--font-mono); font-size:5vh; color:var(--yellow); font-weight:700;}
+  .tv-close{position:absolute; top:1vh; right:1vw; background:none; border:none; color:var(--muted-2); font-size:18px; cursor:pointer;}
+  .tv-main{display:grid; grid-template-columns:1fr 22vh; gap:2vw; min-height:0;}
+  .tv-panel{min-height:0; overflow:hidden; background:var(--bg-elev); border:1px solid var(--line); border-radius:16px; padding:2.4vh 2vw;}
+  .tv-panel h2{font-family:var(--font-display); text-transform:uppercase; margin:0 0 1.6vh; font-size:3.4vh; color:var(--yellow); letter-spacing:.03em;}
+  .tv-cols{columns:2; column-gap:3vw;}
+  .tv-row{display:grid; grid-template-columns:5vh 1fr auto; gap:1vw; align-items:center; font-size:2.6vh; padding:.55vh 0; border-bottom:1px solid var(--line); break-inside:avoid;}
+  .tv-row .p{font-family:var(--font-mono); color:var(--muted);}
+  .tv-row .t{font-family:var(--font-mono); font-weight:700;}
+  .tv-row.first .n, .tv-row.first .p{color:var(--yellow); font-weight:700;}
+  .tv-match{display:grid; grid-template-columns:12vh 1fr; gap:1.5vw; font-size:2.5vh; padding:.8vh 0; border-bottom:1px solid var(--line);}
+  .tv-match .tm{font-family:var(--font-mono); color:var(--yellow);}
+  .tv-match small{color:var(--muted); font-size:1.9vh;}
+  .tv-side{display:flex; flex-direction:column; gap:1.4vh; align-items:center; justify-content:flex-end; text-align:center;}
+  .tv-qr{background:#fff; padding:1.2vh; border-radius:12px; line-height:0;}
+  .tv-qr img, .tv-qr canvas{width:18vh !important; height:18vh !important;}
+  .tv-side p{font-size:1.8vh; color:var(--muted); margin:0;}
+  .tv-dots{display:flex; gap:8px; justify-content:center;}
+  .tv-dots span{width:10px; height:10px; border-radius:50%; background:var(--line-strong);}
+  .tv-dots span.on{background:var(--yellow);}
+  .tv-big{font-family:var(--font-display); font-size:7vh; text-transform:uppercase; color:var(--yellow); line-height:1;}
 </style>
 </head>
 <body>
@@ -109,668 +176,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../js/mst.js?v=202610031200" data-base="../"></script>
-<script src="../js/spieltag-engine.js?v=202610031200"></script>
-<script src="../js/spieltag-data.js?v=202610031200"></script>
-<script src="../js/spieltag-ui.js?v=202610031200"></script>
-<script>
-/* ===================== Spieltag – öffentliche Live-Seite + Admin =====================
-   Alle sehen Rangliste, Spiele und Historie live. Wer als Admin eingeloggt ist,
-   kann Spiele einstellen, auslosen, Teams anpassen und Resultate eintragen.
-   Personen, Gäste und Teilnehmende werden in der Organisation verwaltet. */
-const E = SpieltagEngine, D = SpieltagData;
-const qs = new URLSearchParams(location.search);
-let isAdmin = D.test;
-let settings = null, YEAR = null, yearDoc = undefined, gameData = {}, catalog = [], history = [], strength = {};
-let unsubYear = [], editTeams = {}, pending = false, msg = "";
-
-/* ---------- Start ---------- */
-MST._onReady = () => render();   // falls sich jemand über das Login-Fenster als Mitglied anmeldet
-auth.onAuthStateChanged(u => {
-  isAdmin = D.test || !!(u && !u.isAnonymous);
-  const gate = document.getElementById("gate");
-  if(isAdmin && !gate.hidden){ gate.hidden = true; gate.innerHTML = ""; }
-  render();
-});
-D.watchDoc("spieltagMeta/settings", s => {
-  settings = s || {};
-  const y = qs.get("jahr") || settings.currentYear || null;
-  if(y !== YEAR) openYear(y);
-});
-D.watchCollection("spieltagPersons", docs => {
-  ST.persons = {}; docs.forEach(d => ST.persons[d.id] = d.data); render();
-});
-D.watchDoc("spieltagMeta/catalog", c => { catalog = (c && c.items) || E.DEFAULT_CATALOG; });
-D.getCollection("spieltagHistory").then(docs => {
-  history = docs.map(d => d.data).sort((a, b) => a.year - b.year);
-  strength = E.strengthFromHistory(history);
-  render();
-}).catch(e => console.warn("Historie", e));
-
-function openYear(y){
-  unsubYear.forEach(f => f()); unsubYear = [];
-  YEAR = y; yearDoc = undefined; gameData = {};
-  if(!y){ yearDoc = null; render(); return; }
-  unsubYear.push(D.watchDoc(`spieltag/${y}`, d => { yearDoc = d; render(); }));
-  unsubYear.push(D.watchCollection(`spieltag/${y}/games`, docs => {
-    gameData = {}; docs.forEach(d => gameData[d.id] = d.data); render();
-  }));
-}
-
-const games = () => ((yearDoc && yearDoc.games) || []).map(E.normalizeGame);
-const participants = () => (yearDoc && yearDoc.participants) || [];
-const gamePath = id => `spieltag/${YEAR}/games/${id}`;
-const ctx = () => ({ participants:participants() });
-
-/* Neu zeichnen – aber nicht, während jemand gerade ein Resultat tippt. */
-function render(){
-  const a = document.activeElement;
-  if(a && a.closest && a.closest("#content") && (a.tagName === "INPUT" || a.tagName === "SELECT")){ pending = true; return; }
-  pending = false;
-  draw();
-}
-document.addEventListener("focusout", () => setTimeout(() => { if(pending) render(); }, 30));
-window.addEventListener("hashchange", () => { draw(); window.scrollTo(0, 0); });
-
-function route(){
-  const h = location.hash.replace(/^#/, "");
-  const [view, arg] = h.split("/");
-  return { view:view || "rangliste", arg:arg ? decodeURIComponent(arg) : null };
-}
-
-/* ---------- Gerüst ---------- */
-function draw(){
-  const app = document.getElementById("app");
-  if(yearDoc === undefined || settings === null){ return; }
-  const r = route();
-  const gs = games();
-  const ov = yearDoc ? E.overall(gs, gameData, ctx()) : null;
-  const done = ov ? gs.filter(g => ov.evals[g.id].final).length : 0;
-  const tabs = [["rangliste", "Rangliste"], ["spiele", "Spiele"], ["historie", "Historie"]];
-  const activeTab = r.view === "spiel" ? "spiele" : r.view === "person" || r.view === "jahr" ? "historie" : r.view;
-  app.innerHTML = `
-    <div class="topbar">
-      <span class="crumbs"><a href="../">MST Ermatingen</a> / Spieltag</span>
-      <div id="userbar">${isAdmin
-        ? `<span class="user-chip"><span class="admin-tag">Admin</span></span>${D.test ? "" : '<a class="link-btn" href="organisation/">Organisation</a><button class="link-btn" id="logoutBtn" type="button">Abmelden</button>'}`
-        : '<button class="link-btn" id="loginBtn" type="button">Admin</button>'}</div>
-    </div>
-    ${D.test ? `<div class="test-banner"><span>🧪 Testmodus – Änderungen bleiben nur in diesem Fenster und werden nicht gespeichert.</span><a href="./${YEAR ? "?jahr=" + YEAR : ""}">Testmodus beenden</a></div>` : ""}
-    <div class="hero">
-      <div class="hero-left">
-        <img class="hero-logo" src="../assets/logo.png" alt="">
-        <div class="hero-titles">
-          <span class="eyebrow">${YEAR ? `${ST.edition(YEAR)}. Ermatinger Minispieltag` : "Ermatinger Minispieltag"}</span>
-          <h1 class="hero-title">Spieltag ${esc(YEAR || "")}</h1>
-          <p class="hero-sub">${yearDoc ? esc([ST.fmtDate(yearDoc.date), yearDoc.place].filter(Boolean).join(" · ") || "Datum folgt") : ""}</p>
-        </div>
-      </div>
-      ${yearDoc ? `<div class="hero-stats">
-        <div class="stat-chip"><span class="num">${participants().length}</span><span class="lbl">Teilnehmende</span></div>
-        <div class="stat-chip"><span class="num">${done}/${gs.length}</span><span class="lbl">Spiele fertig</span></div>
-        ${ov && ov.rows.length && ov.rows[0].total > 0 ? `<div class="stat-chip"><span class="num">${esc(ST.nameOf(ov.rows[0].pid))}</span><span class="lbl">führt</span></div>` : ""}
-      </div>` : ""}
-    </div>
-    <div class="court-line"></div>
-    <nav class="tabbar">${tabs.map(([k, l]) => `<button class="tabbtn ${activeTab === k ? "active" : ""}" data-tab="${k}">${l}</button>`).join("")}</nav>
-    <section class="panel" id="content"></section>
-    <p class="footer-note">MST Ermatingen · Spieltag live${isAdmin ? "" : " · Resultate trägt die Spielleitung ein"}</p>`;
-  app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { location.hash = b.dataset.tab; });
-  const lb = document.getElementById("loginBtn");
-  if(lb) lb.onclick = () => MST.showLogin("", true);
-  const lo = document.getElementById("logoutBtn");
-  if(lo) lo.onclick = async () => { await auth.signOut(); location.reload(); };
-
-  const c = document.getElementById("content");
-  if(!yearDoc && r.view !== "historie" && r.view !== "person" && r.view !== "jahr"){
-    c.innerHTML = `<div class="card"><h3>Noch kein Spieltag angelegt</h3><p class="muted">${isAdmin ? 'In der <a href="organisation/">Organisation</a> unter «Spieltage» einen neuen Spieltag anlegen.' : "Sobald der nächste Spieltag geplant ist, erscheint er hier."}</p></div>`;
-    return;
-  }
-  if(r.view === "spiele") viewGames(c, ov);
-  else if(r.view === "spiel") viewGame(c, r.arg, ov);
-  else if(r.view === "historie") viewHistory(c);
-  else if(r.view === "jahr") viewYear(c, r.arg);
-  else if(r.view === "person") viewPerson(c, r.arg, ov);
-  else viewOverall(c, ov);
-}
-
-/* ---------- Gesamtrangliste ---------- */
-function viewOverall(c, ov){
-  const gs = games();
-  if(!participants().length){ c.innerHTML = '<div class="card"><p class="muted">Noch keine Teilnehmenden eingetragen.</p></div>'; return; }
-  const medal = r => r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : "";
-  const anyPoints = ov.rows.some(r => r.total > 0);
-  if(!anyPoints) ov.rows.sort((a, b) => ST.nameOf(a.pid).localeCompare(ST.nameOf(b.pid), "de"));
-  const rows = ov.rows.map(row => {
-    const cells = gs.map(g => {
-      const ev = ov.evals[g.id];
-      const pts = ev.personPoints[row.pid];
-      const unitRow = ev.rows.find(x => (x.members || []).includes(row.pid));
-      if(pts == null || (!pts && !(unitRow && unitRow.rank))) return '<td class="num muted">–</td>';
-      return `<td class="num ${unitRow && unitRow.final ? "" : "prov"}">${pts}</td>`;
-    }).join("");
-    return `<tr class="click ${row.rank === 1 && row.total > 0 ? "top1" : ""}" data-pid="${esc(row.pid)}">
-      <td class="pos">${anyPoints ? row.rank : ""}</td><td class="who sticky"><span class="medal">${row.total > 0 ? medal(row.rank) : ""}</span>${esc(ST.nameOf(row.pid))}</td>${cells}<td class="total">${row.total}</td></tr>`;
-  }).join("");
-  c.innerHTML = `
-    <div class="card">
-      <h3>Gesamtrangliste ${esc(YEAR)}</h3>
-      <p class="rule-note">${anyPoints ? "" : "Noch keine Resultate. "}Graue, schräge Zahlen sind vorläufig (Spiel läuft noch – im K.o. sind es die schon sicheren Punkte).</p>
-      <div class="tbl-scroll"><table class="rank">
-        <thead><tr><th>#</th><th class="sticky">Name</th>${gs.map(g => `<th class="num gh" title="${esc(g.name)}"><a href="#spiel/${esc(g.id)}">${esc(g.icon || "")}<br>${esc(g.name)}</a></th>`).join("")}<th class="num">Total</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>
-    </div>`;
-  c.querySelectorAll("[data-pid]").forEach(tr => tr.onclick = () => { location.hash = "person/" + encodeURIComponent(tr.dataset.pid); });
-}
-const shortName = n => n.length > 9 ? n.split(/[\s/]+/)[0].slice(0, 9) : n;
-
-/* ---------- Spiele-Übersicht ---------- */
-function statusChip(ev){
-  if(!ev.drawn) return '<span class="chip">nicht ausgelost</span>';
-  if(ev.status === "fertig") return '<span class="chip done">fertig</span>';
-  if(ev.status === "läuft") return `<span class="chip live">läuft ${ev.done}/${ev.total}</span>`;
-  return '<span class="chip">bereit</span>';
-}
-function viewGames(c, ov){
-  const gs = games();
-  const n = participants().length;
-  const byCat = { Einzel:[], Partner:[], Gruppe:[] };
-  gs.forEach((g, i) => byCat[E.category(g)].push({ g, i }));
-  const catNames = { Einzel:"Einzelwettkämpfe", Partner:"Partnerwettkämpfe", Gruppe:"Gruppenwettkämpfe" };
-  let html = isAdmin ? `<div class="notice"><span>Vor dem Spieltag: Spiele wechseln, Spielmodus und Teamgrösse wählen (✎), dann im Spiel auslosen. Personen und Gäste: <a href="organisation/">Organisation</a>.</span></div>` : "";
-  Object.entries(byCat).forEach(([cat, list]) => {
-    if(!list.length) return;
-    html += `<div class="cat-title">${catNames[cat]}</div><div class="games">`;
-    list.forEach(({ g, i }) => {
-      const ev = ov.evals[g.id];
-      const leader = ev.drawn && ev.rows.length && ev.rows[0].points > 0 && ev.done > 0
-        ? `<div class="gcard-lead">${ev.final ? "Sieger" : "vorne"}: <b>${esc(ST.unitLabel(ev.units.find(u => u.id === ev.rows[0].unitId)))}</b></div>` : "";
-      html += `<div class="gcard" data-game="${esc(g.id)}">
-        <div class="gcard-head"><span class="gcard-icon">${esc(g.icon || "🎲")}</span><span class="gcard-name">${esc(g.name)}</span>${statusChip(ev)}</div>
-        <div class="gcard-sub">${esc(E.summary(g))}</div>
-        <div class="gcard-sub">${esc(E.describeUnits(n, g))}${E.describeFormat(E.unitCountFor(n, g), g) ? " · " + esc(E.describeFormat(E.unitCountFor(n, g), g)) : ""}</div>
-        ${leader}
-        ${isAdmin ? `<div class="gcard-admin">
-          <button class="btn-small" data-up="${i}" ${i === 0 ? "disabled" : ""} title="nach oben">↑</button>
-          <button class="btn-small" data-down="${i}" ${i === gs.length - 1 ? "disabled" : ""} title="nach unten">↓</button>
-          <button class="btn-small" data-edit="${i}">✎ einstellen</button>
-        </div>` : ""}
-      </div>`;
-    });
-    html += `</div>`;
-  });
-  if(isAdmin) html += `<div class="games" style="margin-top:12px;"><button class="add-game" id="addGame">+ Spiel hinzufügen</button></div>`;
-  c.innerHTML = html;
-  c.querySelectorAll("[data-game]").forEach(el => el.onclick = (e) => {
-    if(e.target.closest("button")) return;
-    location.hash = "spiel/" + encodeURIComponent(el.dataset.game);
-  });
-  if(!isAdmin) return;
-  c.querySelectorAll("[data-up]").forEach(b => b.onclick = () => moveGame(+b.dataset.up, -1));
-  c.querySelectorAll("[data-down]").forEach(b => b.onclick = () => moveGame(+b.dataset.down, 1));
-  c.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => editGame(+b.dataset.edit));
-  document.getElementById("addGame").onclick = addGame;
-}
-async function saveGames(list){
-  await D.merge(`spieltag/${YEAR}`, { games:list.map(g => JSON.parse(JSON.stringify(g))) });
-}
-async function moveGame(i, d){
-  const list = (yearDoc.games || []).slice();
-  const j = i + d;
-  if(j < 0 || j >= list.length) return;
-  [list[i], list[j]] = [list[j], list[i]];
-  await saveGames(list);
-}
-function editGame(i){
-  const list = (yearDoc.games || []).slice();
-  const old = list[i];
-  const hasDraw = !!gameData[old.id];
-  GameDialog.open(old, {
-    title:`${old.name} einstellen`, catalog, participants:participants().length, allowCatalogPick:true,
-    warn: hasDraw ? "Schon ausgelost: Änderungen an Teamgrösse oder Modus löschen Auslosung und Resultate dieses Spiels." : "",
-    onSave: async (g) => {
-      if(hasDraw && GameDialog.structuralChange(old, g)){
-        if(!confirm("Teamgrösse/Modus geändert – Auslosung und Resultate dieses Spiels werden gelöscht. Weiter?")) return false;
-        await D.remove(gamePath(old.id));
-      }
-      list[i] = Object.assign({}, g, { id:old.id });
-      await saveGames(list);
-    },
-    onDelete: async () => {
-      if(hasDraw) await D.remove(gamePath(old.id));
-      list.splice(i, 1);
-      await saveGames(list);
-    }
-  });
-}
-function addGame(){
-  const used = new Set((yearDoc.games || []).map(g => g.catId || g.id));
-  const first = catalog.find(c => !used.has(c.id)) || catalog[0] || { name:"Neues Spiel" };
-  GameDialog.open(Object.assign({}, first, { catId:first.id }), {
-    title:"Spiel hinzufügen", catalog, participants:participants().length, allowCatalogPick:true,
-    onSave: async (g) => {
-      const list = (yearDoc.games || []).slice();
-      let id = ST.slug(g.catId || g.name), k = 2;
-      while(list.some(x => x.id === id)) id = ST.slug(g.catId || g.name) + "_" + k++;
-      list.push(Object.assign({}, g, { id }));
-      await saveGames(list);
-    }
-  });
-}
-
-/* ---------- Ein Spiel ---------- */
-function viewGame(c, id, ov){
-  const g = games().find(x => x.id === id);
-  if(!g){ c.innerHTML = '<a class="back" href="#spiele">← alle Spiele</a><div class="card"><p class="muted">Dieses Spiel gibt es nicht (mehr).</p></div>'; return; }
-  const ev = ov.evals[g.id];
-  const data = gameData[g.id] || {};
-  const solo = E.isSolo(g);
-  const n = participants().length;
-  const needsDraw = !(solo && g.mode === "rangliste");
-  const hasResults = Object.values(data.matches || {}).some(m => m && m.sa != null) || Object.keys(data.scores || {}).length > 0;
-  let html = `<a class="back" href="#spiele">← alle Spiele</a>
-    <div class="game-head"><span class="gicon">${esc(g.icon || "🎲")}</span>
-      <div><h2>${esc(g.name)}</h2><div class="sub">${esc(E.summary(g))} · max. ${g.maxPoints} Punkte</div>
-      <div class="sub">${esc(E.describeUnits(n, g))}${ev.drawn && E.describeFormat(ev.units.length, g) ? " · " + esc(E.describeFormat(ev.units.length, g)) : ""}</div></div>
-      <span style="margin-left:auto">${statusChip(ev)}</span></div>`;
-
-  if(isAdmin){
-    html += `<div class="admin-bar">
-      ${needsDraw ? `<button class="btn-primary" id="drawBtn">${ev.drawn ? "Neu auslosen" : "Auslosen"}</button>
-        <select id="drawMode" class="season-select" style="margin:0">
-          <option value="zufall" ${g.draw !== "stark" ? "selected" : ""}>zufällig, neue Partner</option>
-          <option value="stark" ${g.draw === "stark" ? "selected" : ""}>ausgeglichen (Historie)</option>
-        </select>` : ""}
-      ${ev.drawn && needsDraw && !solo ? `<button class="btn-ghost" id="teamsBtn">${editTeams[g.id] ? "Teams fertig" : "Teams anpassen"}</button>` : ""}
-      <button class="btn-ghost" id="cfgBtn">✎ Einstellen</button>
-      ${ev.drawn && (hasResults || needsDraw) ? `<button class="btn-ghost" id="resetBtn">Zurücksetzen</button>` : ""}
-      ${D.test && ev.drawn && ev.status !== "fertig" ? `<button class="btn-ghost" id="simBtn">🎲 Zufallsresultate</button>` : ""}
-    </div>`;
-    if(msg){ html += `<div class="notice"><span>${esc(msg)}</span></div>`; msg = ""; }
-    // Wer ist neu / nicht mehr dabei?
-    if(ev.drawn && needsDraw){
-      const inUnits = new Set((data.units || []).flatMap(u => u.members));
-      const fresh = participants().filter(p => !inUnits.has(p));
-      const gone = [...inUnits].filter(p => !participants().includes(p));
-      if(fresh.length){
-        html += `<div class="notice"><span>Neu dabei und noch nicht eingeteilt: <b>${esc(fresh.map(p => ST.nameOf(p)).join(", "))}</b></span>
-          ${!solo ? `<button class="btn-small" id="addLateBtn">in die kleinsten Teams einteilen</button>`
-            : hasResults ? `<span class="small">Schon Resultate eingetragen – nur mit «Neu auslosen» möglich.</span>` : `<button class="btn-small" id="redrawLate">neu auslosen</button>`}</div>`;
-      }
-      if(gone.length){
-        html += `<div class="notice red"><span>Nicht mehr angemeldet: <b>${esc(gone.map(p => ST.nameOf(p)).join(", "))}</b></span>
-          ${!solo ? `<button class="btn-small" id="rmGoneBtn">aus den Teams nehmen</button>` : ""}</div>`;
-      }
-    }
-  }
-
-  if(!ev.drawn){
-    html += `<div class="card"><p class="muted">${isAdmin ? "Noch nicht ausgelost. Oben auf «Auslosen» tippen – Teams, Gruppen und Spielplan entstehen automatisch, auch bei ungerader Anzahl." : "Wird noch ausgelost."}</p></div>`;
-    c.innerHTML = html; bindGameAdmin(g, ev, data); return;
-  }
-
-  // Teams
-  if(!solo){
-    const edit = isAdmin && editTeams[g.id];
-    html += `<div class="card"><h3>Teams</h3><div class="units">${ev.units.map(u => `
-      <div class="unit"><div class="unit-name">${esc(u.name || "Team")} <small>${u.members.length}er</small></div>
-        ${u.members.map(p => `<div class="unit-m"><span>${esc(ST.nameOf(p))}</span>${edit ? `<select data-move="${esc(p)}" data-from="${esc(u.id)}">
-          <option value="">verschieben …</option>${ev.units.filter(x => x.id !== u.id).map(x => `<option value="${esc(x.id)}">→ ${esc(x.name)}</option>`).join("")}</select>` : ""}</div>`).join("")}
-      </div>`).join("")}</div>
-      ${edit ? '<p class="rule-note" style="margin:10px 0 0">Person in ein anderes Team verschieben. Gespielte Resultate bleiben beim Team.</p>' : ""}</div>`;
-  }
-
-  // Alle Partien, bei denen beide Gegner feststehen – praktisch auf dem Handy
-  if(g.mode !== "rangliste" && ev.status !== "fertig"){
-    const open = E.openMatches(ev);
-    if(open.length) html += `<div class="card" style="margin-bottom:12px"><h3>Jetzt spielbar (${open.length})</h3>
-      ${open.map(m => matchRow(g, ev, Object.assign({ res:null }, m), m.noDraw)).join("")}</div>`;
-  }
-  if(g.mode === "rangliste") html += rangView(g, ev, data);
-  else if(g.mode === "ko") html += `<div class="card"><h3>K.o.-Raster</h3>${bracketView(g, ev.view.bracket, ev)}</div>`;
-  else if(g.mode === "gruppen_ko") html += groupsView(g, ev);
-  else if(g.mode === "liga") html += ligaView(g, ev);
-
-  if(g.mode !== "rangliste") html += placementTable(g, ev);
-  c.innerHTML = html;
-  bindGameAdmin(g, ev, data);
-}
-
-function unitById(ev, id){ return ev.units.find(u => u.id === id); }
-function label(ev, id){ return id ? ST.unitLabel(unitById(ev, id)) : ""; }
-
-/* Rangliste (Minigolf, Pub Quiz …) */
-function rangView(g, ev, data){
-  const rows = ev.view.rows || [];
-  const place = {}; ev.rows.forEach(r => place[r.unitId] = r);
-  let list;
-  if(isAdmin){
-    // Eingabe in fester Reihenfolge (Name bzw. Team), damit nichts herumspringt
-    list = E.isSolo(g) ? ST.sortByName(rows.map(r => r.id)).map(id => rows.find(r => r.id === id)) : rows;
-  } else {
-    list = rows.slice().sort((a, b) => ((place[a.id] || {}).rank || 999) - ((place[b.id] || {}).rank || 999));
-  }
-  const head = Array.from({ length:g.entries }, (_, i) => `<th class="num">${g.entries > 1 ? (i + 1) + "." : esc(g.scoreLabel)}</th>`).join("");
-  const body = list.map(r => {
-    const p = place[r.id] || {};
-    const cells = Array.from({ length:g.entries }, (_, i) => {
-      const v = r.vals[i];
-      return isAdmin
-        ? `<td class="num"><input inputmode="decimal" data-score="${esc(r.id)}" data-i="${i}" value="${v == null ? "" : v}"></td>`
-        : `<td class="num">${v == null ? '<span class="muted">–</span>' : v}</td>`;
-    }).join("");
-    return `<tr class="${p.rank === 1 ? "top1" : ""}"><td class="pos">${p.rank || ""}</td><td class="who">${esc(label(ev, r.id))}</td>${cells}
-      ${g.entries > 1 ? `<td class="num">${r.total == null ? "" : r.total}</td>` : ""}<td class="total ${p.final ? "" : "prov"}">${p.points != null && r.total != null ? p.points : ""}</td></tr>`;
-  }).join("");
-  return `<div class="card"><h3>${isAdmin ? "Resultate eintragen" : "Rangliste"}</h3>
-    <p class="rule-note">${esc(g.scoreLabel)}: ${g.scoreDir === "asc" ? "weniger ist besser" : "mehr ist besser"}${g.entries > 1 ? ` · ${g.entries} Durchgänge, zählt die Summe` : ""}${isAdmin ? " · speichert beim Verlassen des Feldes" : ""}</p>
-    <div class="tbl-scroll"><table class="rank"><thead><tr><th>#</th><th>${E.isSolo(g) ? "Name" : "Team"}</th>${head}${g.entries > 1 ? '<th class="num">Total</th>' : ""}<th class="num">Pkt</th></tr></thead>
-    <tbody>${body}</tbody></table></div></div>`;
-}
-
-/* Eine Begegnung als Zeile (Gruppen, Liga, Platzierungsspiele) */
-function matchRow(g, ev, m, noDraw){
-  const res = m.res;
-  const wa = res && res.sa > res.sb, wb = res && res.sb > res.sa;
-  let mid;
-  if(isAdmin && g.resultType === "winner"){
-    mid = `<div class="score"><button class="wbtn ${wa ? "win" : ""}" data-win="a" data-key="${m.key}" data-a="${esc(m.a)}" data-b="${esc(m.b)}">◀</button>
-      <span class="res ${res ? "" : "open"}">${res ? (wa ? "Sieg" : wb ? "Sieg" : "–") : "vs"}</span>
-      <button class="wbtn ${wb ? "win" : ""}" data-win="b" data-key="${m.key}" data-a="${esc(m.a)}" data-b="${esc(m.b)}">▶</button></div>`;
-  } else if(isAdmin){
-    mid = `<div class="score" data-match="${m.key}" data-a="${esc(m.a)}" data-b="${esc(m.b)}" data-nodraw="${noDraw ? 1 : 0}">
-      <input inputmode="numeric" data-side="a" value="${res ? res.sa : ""}"> : <input inputmode="numeric" data-side="b" value="${res ? res.sb : ""}"></div>`;
-  } else {
-    mid = `<div class="score"><span class="res ${res ? "" : "open"}">${res ? (g.resultType === "winner" ? "✓" : res.sa + " : " + res.sb) : "vs"}</span></div>`;
-  }
-  return `<div class="match"><span class="ma ${wa ? "win" : wb ? "lose" : ""}">${esc(label(ev, m.a))}</span>${mid}<span class="mb ${wb ? "win" : wa ? "lose" : ""}">${esc(label(ev, m.b))}</span></div>`;
-}
-
-function groupsView(g, ev){
-  const letters = "ABCDEFGHIJKL";
-  let html = `<div class="split">`;
-  ev.view.groups.forEach((gr, gi) => {
-    const q = g.qualifiers;
-    const rounds = [...new Set(gr.games.map(m => m.round))];
-    html += `<div class="card"><h3>Gruppe ${letters[gi] || gi + 1}</h3>
-      <div class="tbl-scroll"><table class="rank"><thead><tr><th>#</th><th>Team</th><th class="num">Sp</th><th class="num">Diff</th><th class="num">Pkt</th></tr></thead><tbody>
-      ${gr.table.map((row, pos) => `<tr class="${pos < q ? "top1" : ""}"><td class="pos">${row.rank}</td><td class="who">${esc(label(ev, row.id))}</td><td class="num">${row.played}</td><td class="num">${row.diff > 0 ? "+" : ""}${row.diff}</td><td class="num">${row.pts}</td></tr>`).join("")}
-      </tbody></table></div>
-      ${rounds.map(r => `<div class="round-title">Runde ${r + 1}${gr.byes[r] ? ` · frei: ${esc(label(ev, gr.byes[r]))}` : ""}</div>` + gr.games.filter(m => m.round === r).map(m => matchRow(g, ev, m, false)).join("")).join("")}
-    </div>`;
-  });
-  html += `</div>`;
-  html += `<div class="card" style="margin-top:12px"><h3>K.o.-Phase</h3>${ev.view.bracket
-    ? bracketView(g, ev.view.bracket, ev)
-    : `<p class="muted">Startet automatisch, sobald alle Gruppenspiele eingetragen sind (${ev.view.qualCount} Teams kommen weiter).</p>`}</div>`;
-  return html;
-}
-
-function ligaView(g, ev){
-  const v = ev.view;
-  let html = `<div class="split"><div class="card"><h3>Tabelle</h3><div class="tbl-scroll"><table class="rank">
-    <thead><tr><th>#</th><th>Team</th><th class="num">Sp</th><th class="num">S</th><th class="num">U</th><th class="num">N</th><th class="num">Diff</th><th class="num">Pkt</th></tr></thead><tbody>
-    ${v.table.map(r => `<tr class="${r.rank === 1 ? "top1" : ""}"><td class="pos">${r.rank}</td><td class="who">${esc(label(ev, r.id))}</td><td class="num">${r.played}</td><td class="num">${r.won}</td><td class="num">${r.draw}</td><td class="num">${r.lost}</td><td class="num">${r.diff > 0 ? "+" : ""}${r.diff}</td><td class="num">${r.pts}</td></tr>`).join("")}
-    </tbody></table></div><p class="rule-note" style="margin:8px 0 0">Sieg 3, Unentschieden 1, Niederlage 0 · bei Gleichstand zählt die Differenz.</p></div>
-    <div class="card"><h3>Spiele</h3>
-    ${v.rounds.map((rd, ri) => `<div class="round-title">Runde ${ri + 1}${rd.bye ? ` · frei: ${esc(label(ev, rd.bye))}` : ""}</div>` + v.games.filter(m => m.round === ri).map(m => matchRow(g, ev, m, false)).join("")).join("")}
-    </div></div>`;
-  if(v.placement){
-    html += `<div class="card" style="margin-top:12px"><h3>Platzierungsspiele</h3>
-      ${v.placement.map(m => `<div class="round-title">um Platz ${m.places[0]} / ${m.places[1]}</div>` + (m.ready ? matchRow(g, ev, m, true) : `<p class="muted small">nach der letzten Runde</p>`)).join("")}</div>`;
-  }
-  return html;
-}
-
-/* K.o.-Raster in Spalten */
-function bracketView(g, br, ev){
-  if(!br || !br.rounds.length) return br && br.champion ? `<p>Sieger: <b>${esc(label(ev, br.champion))}</b></p>` : '<p class="muted">Zu wenige Teams.</p>';
-  const slot = (m, side) => {
-    const id = side === "a" ? m.a : m.b;
-    const res = m.res;
-    const other = side === "a" ? m.b : m.a;
-    if(id === undefined) return `<div class="bslot tbd"><span class="nm">offen</span></div>`;
-    if(id === null) return `<div class="bslot tbd"><span class="nm">Freilos</span></div>`;
-    const cls = m.winner === id ? "win" : (m.winner !== undefined && m.winner !== null && !m.bye) ? "lose" : "";
-    let right = "";
-    const playable = m.a && m.b && !m.bye;
-    if(playable && isAdmin){
-      if(g.resultType === "winner"){
-        right = `<button class="wbtn ${m.winner === id ? "win" : ""}" data-win="${side}" data-key="${m.key}" data-a="${esc(m.a)}" data-b="${esc(m.b)}">Sieg</button>`;
-      } else {
-        right = `<input inputmode="numeric" data-bm="${m.key}" data-side="${side}" value="${res ? (side === "a" ? res.sa : res.sb) : ""}">`;
-      }
-    } else if(playable && res){
-      right = `<span class="sc">${g.resultType === "winner" ? (m.winner === id ? "✓" : "") : (side === "a" ? res.sa : res.sb)}</span>`;
-    }
-    return `<div class="bslot ${cls}"><span class="nm">${esc(label(ev, id))}</span>${right}</div>`;
-  };
-  const box = m => `<div class="bmatch ${m.bye ? "bye" : ""}" ${m.a && m.b && !m.bye ? `data-bmatch="${m.key}" data-a="${esc(m.a)}" data-b="${esc(m.b)}"` : ""}>${slot(m, "a")}${slot(m, "b")}</div>`;
-  let html = `<div class="bracket">`;
-  br.rounds.forEach(r => {
-    const allBye = r.matches.every(m => m.bye);
-    if(allBye) return;
-    html += `<div class="bcol"><div class="bcol-title">${esc(r.label)}</div>${r.matches.map(box).join("")}</div>`;
-  });
-  if(br.third) html += `<div class="bcol"><div class="bcol-title">um Platz 3</div>${box(br.third)}</div>`;
-  html += `</div>`;
-  if(br.champion) html += `<p style="margin:10px 0 0">🏆 Sieger: <b style="color:var(--yellow)">${esc(label(ev, br.champion))}</b></p>`;
-  return html;
-}
-
-function placementTable(g, ev){
-  const rows = ev.rows.filter(r => r.points > 0 || r.rank);
-  if(!rows.length) return "";
-  return `<div class="card" style="margin-top:12px"><h3>${ev.final ? "Schlussrangliste" : "Stand & sichere Punkte"}</h3>
-    <div class="tbl-scroll"><table class="rank"><thead><tr><th>#</th><th>${E.isSolo(g) ? "Name" : "Team"}</th><th>Stufe</th><th class="num">Punkte</th></tr></thead><tbody>
-    ${rows.map(r => `<tr class="${r.rank === 1 ? "top1" : ""}"><td class="pos">${r.rank || ""}</td><td class="who">${esc(ST.unitLabel(unitById(ev, r.unitId)))}${!E.isSolo(g) && r.members.length > 3 ? `<div class="small muted">${esc(r.members.map(p => ST.nameOf(p)).join(", "))}</div>` : ""}</td>
-      <td class="small muted">${esc(r.label || "")}</td><td class="total ${r.final ? "" : "prov"}">${r.points}</td></tr>`).join("")}
-    </tbody></table></div></div>`;
-}
-
-/* ---------- Admin-Aktionen im Spiel ---------- */
-function bindGameAdmin(g, ev, data){
-  if(!isAdmin) return;
-  const $ = id => document.getElementById(id);
-  if($("cfgBtn")) $("cfgBtn").onclick = () => editGame((yearDoc.games || []).findIndex(x => x.id === g.id));
-  if($("drawBtn")) $("drawBtn").onclick = () => doDraw(g, $("drawMode").value, ev);
-  if($("redrawLate")) $("redrawLate").onclick = () => doDraw(g, $("drawMode") ? $("drawMode").value : g.draw, ev, true);
-  if($("teamsBtn")) $("teamsBtn").onclick = () => { editTeams[g.id] = !editTeams[g.id]; draw(); };
-  if($("resetBtn")) $("resetBtn").onclick = async () => {
-    if(!confirm(`Auslosung und alle Resultate von «${g.name}» löschen?`)) return;
-    await D.remove(gamePath(g.id));
-  };
-  if($("simBtn")) $("simBtn").onclick = async () => { await D.set(gamePath(g.id), E.simulate(g, data, ctx())); };
-  if($("addLateBtn")) $("addLateBtn").onclick = async () => {
-    const units = JSON.parse(JSON.stringify(data.units));
-    const inUnits = new Set(units.flatMap(u => u.members));
-    participants().filter(p => !inUnits.has(p)).forEach(p => {
-      const min = Math.min(...units.map(u => u.members.length));
-      const cands = units.filter(u => u.members.length === min);
-      cands[Math.floor(Math.random() * cands.length)].members.push(p);
-    });
-    await D.merge(gamePath(g.id), { units });
-  };
-  if($("rmGoneBtn")) $("rmGoneBtn").onclick = async () => {
-    const units = JSON.parse(JSON.stringify(data.units)).map(u => Object.assign(u, { members:u.members.filter(p => participants().includes(p)) }));
-    const empty = units.filter(u => !u.members.length);
-    if(empty.length && !confirm(`${empty.map(u => u.name).join(", ")} wäre leer und fällt weg (zählt als verloren). Weiter?`)) return;
-    await D.merge(gamePath(g.id), { units:units.filter(u => u.members.length) });
-  };
-  document.querySelectorAll("[data-move]").forEach(sel => sel.onchange = async () => {
-    if(!sel.value) return;
-    const units = JSON.parse(JSON.stringify(data.units));
-    const from = units.find(u => u.id === sel.dataset.from), to = units.find(u => u.id === sel.value);
-    from.members = from.members.filter(p => p !== sel.dataset.move);
-    to.members.push(sel.dataset.move);
-    sel.blur();
-    await D.merge(gamePath(g.id), { units:units.filter(u => u.members.length) });
-  });
-  // Ranglisten-Resultate
-  document.querySelectorAll("[data-score]").forEach(inp => inp.onchange = async () => {
-    const uid = inp.dataset.score, i = +inp.dataset.i;
-    const arr = ((data.scores || {})[uid] || []).slice();
-    while(arr.length < g.entries) arr.push(null);
-    const v = inp.value.trim().replace(",", ".");
-    if(v !== "" && isNaN(Number(v))){ inp.value = ""; return; }
-    arr[i] = v === "" ? null : Number(v);
-    data.scores = Object.assign({}, data.scores, { [uid]:arr });
-    await D.merge(gamePath(g.id), { scores:{ [uid]:arr } });
-  });
-  // Spielstand in Zeilen (Gruppen, Liga, Platzierung)
-  document.querySelectorAll("[data-match]").forEach(box => box.querySelectorAll("input").forEach(inp => inp.onchange = () => {
-    const [ia, ib] = box.querySelectorAll("input");
-    saveMatch(g, box.dataset.match, box.dataset.a, box.dataset.b, ia.value, ib.value, box.dataset.nodraw === "1");
-  }));
-  // Spielstand im K.o.-Raster
-  document.querySelectorAll("[data-bmatch]").forEach(box => {
-    const inputs = box.querySelectorAll("input[data-bm]");
-    inputs.forEach(inp => inp.onchange = () => {
-      const a = box.querySelector('input[data-side="a"]'), b = box.querySelector('input[data-side="b"]');
-      saveMatch(g, box.dataset.bmatch, box.dataset.a, box.dataset.b, a.value, b.value, true);
-    });
-  });
-  // Nur-Sieger-Knöpfe
-  document.querySelectorAll("[data-win]").forEach(btn => btn.onclick = async () => {
-    const key = btn.dataset.key, cur = (data.matches || {})[key];
-    const aWins = btn.dataset.win === "a";
-    const same = cur && cur.a === btn.dataset.a && cur.b === btn.dataset.b && cur.sa != null && ((cur.sa > cur.sb) === aWins);
-    await D.merge(gamePath(g.id), { matches:{ [key]:{ a:btn.dataset.a, b:btn.dataset.b, sa:same ? null : (aWins ? 1 : 0), sb:same ? null : (aWins ? 0 : 1), at:Date.now() } } });
-  });
-}
-async function saveMatch(g, key, a, b, va, vb, noDraw){
-  va = String(va).trim(); vb = String(vb).trim();
-  if(va === "" && vb === ""){
-    await D.merge(gamePath(g.id), { matches:{ [key]:{ a, b, sa:null, sb:null, at:Date.now() } } });
-    return;
-  }
-  if(va === "" || vb === "") return;                 // wartet auf das zweite Feld
-  const sa = Number(va), sb = Number(vb);
-  if(isNaN(sa) || isNaN(sb)) return;
-  if(noDraw && sa === sb){ alert("Unentschieden geht hier nicht – es braucht einen Sieger."); return; }
-  await D.merge(gamePath(g.id), { matches:{ [key]:{ a, b, sa, sb, at:Date.now() } } });
-}
-async function doDraw(g, mode, ev, silent){
-  const data = gameData[g.id];
-  const hasResults = data && (Object.values(data.matches || {}).some(m => m && m.sa != null) || Object.keys(data.scores || {}).length);
-  if(hasResults && !confirm(`«${g.name}» neu auslosen? Alle Resultate dieses Spiels werden gelöscht.`)) return;
-  if(!hasResults && data && !silent && !confirm(`«${g.name}» neu auslosen?`)) return;
-  const ids = participants();
-  if(ids.length < 2 || E.unitCountFor(ids.length, g) < 2){ alert("Zu wenige Teilnehmende für dieses Spiel."); return; }
-  const others = games().filter(x => x.id !== g.id).map(x => gameData[x.id]).filter(Boolean);
-  const d = E.drawGame(g, ids, { mode, strength, pairs:E.pairHistory(others) });
-  if(!E.isSolo(g)){
-    const repeats = countRepeats(d, others);
-    if(repeats) msg = `${repeats} Paarung${repeats > 1 ? "en" : ""} gab es heute schon in einem anderen Spiel${mode === "zufall" ? " (ging nicht ganz ohne)" : ""}.`;
-  }
-  await D.set(gamePath(g.id), d);
-}
-function countRepeats(d, others){
-  const before = E.pairHistory(others);
-  return Object.keys(E.pairHistory([d])).filter(k => before[k]).length;
-}
-
-/* ---------- Historie ---------- */
-function allTime(){
-  const acc = {};
-  history.forEach(y => (y.rows || []).forEach(r => (r.pids || []).forEach(pid => {
-    const a = acc[pid] = acc[pid] || { pid, years:0, total:0, wins:0, podium:0, best:999 };
-    a.years++; a.total += r.total || 0;
-    if(r.rank === 1) a.wins++;
-    if(r.rank && r.rank <= 3) a.podium++;
-    if(r.rank) a.best = Math.min(a.best, r.rank);
-  })));
-  return Object.values(acc).sort((a, b) => b.total - a.total);
-}
-function viewHistory(c){
-  if(!history.length){ c.innerHTML = '<div class="card"><p class="muted">Historie wird geladen …</p></div>'; return; }
-  const at = allTime();
-  // Disziplinen-Matrix
-  const discs = {};
-  history.forEach(y => (y.disciplines || []).forEach(d => {
-    const k = d.catId || ST.slug(d.name);
-    discs[k] = discs[k] || { name:(catalog.find(x => x.id === k) || d).name, icon:(catalog.find(x => x.id === k) || {}).icon || "", years:new Set() };
-    discs[k].years.add(y.year);
-  }));
-  const yrs = history.map(y => y.year);
-  c.innerHTML = `
-    <div class="hist-grid">
-      <div class="card"><h3>Ewige Rangliste ${yrs[0]}–${yrs[yrs.length - 1]}</h3>
-        <p class="rule-note">Summe aller Spieltag-Punkte (nur Punkte – in der alten Excel-Liste wurden die Ränge mitgezählt).</p>
-        <div class="tbl-scroll"><table class="rank"><thead><tr><th>#</th><th>Name</th><th class="num">Teiln.</th><th class="num">Siege</th><th class="num">Podest</th><th class="num">Ø</th><th class="num">Total</th></tr></thead><tbody>
-        ${at.map((a, i) => `<tr class="click ${i === 0 ? "top1" : ""}" data-pid="${esc(a.pid)}"><td class="pos">${i + 1}</td><td class="who">${esc(ST.nameOf(a.pid))}</td><td class="num">${a.years}</td><td class="num">${a.wins || ""}</td><td class="num">${a.podium || ""}</td><td class="num">${Math.round(a.total / a.years)}</td><td class="total">${a.total}</td></tr>`).join("")}
-        </tbody></table></div></div>
-      <div>
-        <div class="card winner-list"><h3>Tagessieger</h3><ul>
-          ${history.slice().reverse().map(y => {
-            const w = (y.rows || []).filter(r => r.rank === 1);
-            return `<li><span><span class="yr">${y.year}</span> · ${ST.edition(y.year)}. Spieltag · <a href="#jahr/${y.year}">${(y.rows || []).length} Teilnehmende</a></span><b>${esc(w.map(r => r.name + ((r.pids || []).length > 1 ? " (" + r.pids.map(p => ST.nameOf(p)).join(" + ") + ")" : "")).join(" & "))}</b></li>`;
-          }).join("")}
-        </ul></div>
-        <div class="card"><h3>Disziplinen pro Jahr</h3><div class="tbl-scroll"><table class="rank matrix">
-          <thead><tr><th>Disziplin</th>${yrs.map(y => `<th class="num">${String(y).slice(2)}</th>`).join("")}</tr></thead><tbody>
-          ${Object.values(discs).sort((a, b) => b.years.size - a.years.size || a.name.localeCompare(b.name)).map(d => `<tr><td>${esc(d.icon)} ${esc(d.name)}</td>${yrs.map(y => `<td class="y ${d.years.has(y) ? "on" : ""}">${d.years.has(y) ? "●" : "·"}</td>`).join("")}</tr>`).join("")}
-          </tbody></table></div></div>
-      </div>
-    </div>`;
-  c.querySelectorAll("[data-pid]").forEach(tr => tr.onclick = () => { location.hash = "person/" + encodeURIComponent(tr.dataset.pid); });
-}
-function viewYear(c, year){
-  const y = history.find(h => String(h.year) === String(year));
-  if(!y){ c.innerHTML = '<a class="back" href="#historie">← Historie</a><div class="card"><p class="muted">Jahr nicht gefunden.</p></div>'; return; }
-  const ds = y.disciplines || [];
-  c.innerHTML = `<a class="back" href="#historie">← Historie</a>
-    <div class="year-pills">${history.map(h => `<a class="btn-small ${h.year === y.year ? "on" : ""}" href="#jahr/${h.year}" style="text-decoration:none">${h.year}</a>`).join("")}</div>
-    <div class="card"><h3>${y.year} · ${ST.edition(y.year)}. Minispieltag</h3>
-    <div class="tbl-scroll"><table class="rank"><thead><tr><th>#</th><th class="sticky">Name</th>${ds.map(d => `<th class="num" title="${esc(d.name)}">${esc(shortName(d.name))}</th>`).join("")}<th class="num">Total</th></tr></thead><tbody>
-    ${(y.rows || []).map(r => `<tr class="click ${r.rank === 1 ? "top1" : ""}" data-pid="${esc((r.pids || [])[0] || "")}"><td class="pos">${r.rank || ""}</td><td class="who sticky">${esc(r.name)}${(r.pids || []).length > 1 ? ` <span class="small muted">(${esc(r.pids.map(p => ST.nameOf(p)).join(" + "))})</span>` : ""}</td>
-      ${ds.map((d, i) => `<td class="num">${r.pts && r.pts[i] != null ? r.pts[i] : ""}</td>`).join("")}<td class="total">${r.total}</td></tr>`).join("")}
-    </tbody></table></div></div>`;
-  c.querySelectorAll("[data-pid]").forEach(tr => tr.onclick = () => { if(tr.dataset.pid) location.hash = "person/" + encodeURIComponent(tr.dataset.pid); });
-}
-function viewPerson(c, pid, ov){
-  const p = ST.persons[pid];
-  const rows = [];
-  const discAvg = {};
-  history.forEach(y => (y.rows || []).forEach(r => {
-    if(!(r.pids || []).includes(pid)) return;
-    rows.push({ year:y.year, rank:r.rank, total:r.total, n:y.rows.length, as:r.pids.length > 1 ? r.name : "" });
-    (y.disciplines || []).forEach((d, i) => {
-      if(!r.pts || r.pts[i] == null) return;
-      const k = d.catId || ST.slug(d.name);
-      (discAvg[k] = discAvg[k] || { name:d.name, list:[] }).list.push(r.pts[i]);
-    });
-  }));
-  // aktuelles Jahr
-  let cur = "";
-  if(ov && participants().includes(pid)){
-    const row = ov.rows.find(r => r.pid === pid);
-    cur = `<div class="card"><h3>${YEAR}: Rang ${row ? row.rank : "–"} · ${row ? row.total : 0} Punkte</h3>
-      <div class="tbl-scroll"><table class="rank"><tbody>${games().map(g => {
-        const ev = ov.evals[g.id];
-        const pts = ev.personPoints[pid];
-        const u = ev.units.find(x => (x.members || []).includes(pid));
-        return `<tr class="click" data-game="${esc(g.id)}"><td>${esc(g.icon || "")} ${esc(g.name)}</td><td class="small muted">${u && u.members.length > 1 ? esc(u.members.filter(x => x !== pid).map(x => ST.nameOf(x)).join(", ")) : ""}</td><td class="total">${pts == null ? "–" : pts}</td></tr>`;
-      }).join("")}</tbody></table></div></div>`;
-  }
-  const best = Object.values(discAvg).filter(d => d.list.length >= 2)
-    .map(d => ({ name:d.name, avg:d.list.reduce((s, x) => s + x, 0) / d.list.length, n:d.list.length }))
-    .sort((a, b) => b.avg - a.avg).slice(0, 5);
-  c.innerHTML = `<a class="back" href="javascript:history.back()">← zurück</a>
-    <div class="game-head"><span class="gicon">👤</span><div><h2>${esc(p ? p.name : "?")}</h2>
-    <div class="sub">${p && p.memberId ? "Vereinsmitglied" : "Gast"} · ${rows.length} Spieltag${rows.length === 1 ? "" : "e"} in der Historie</div></div></div>
-    ${cur}
-    <div class="split" style="margin-top:12px">
-      <div class="card"><h3>Bisherige Spieltage</h3>${rows.length ? `<table class="rank"><thead><tr><th>Jahr</th><th class="num">Rang</th><th class="num">Punkte</th></tr></thead><tbody>
-        ${rows.slice().reverse().map(r => `<tr class="click" data-year="${r.year}"><td>${r.year}${r.as ? ` <span class="small muted">als «${esc(r.as)}»</span>` : ""}</td><td class="num">${r.rank || "–"} / ${r.n}</td><td class="total">${r.total}</td></tr>`).join("")}
-      </tbody></table>` : '<p class="muted">Noch keine.</p>'}</div>
-      <div class="card"><h3>Stärkste Disziplinen</h3>${best.length ? `<table class="rank"><thead><tr><th>Disziplin</th><th class="num">Ø Punkte</th><th class="num">mal</th></tr></thead><tbody>
-        ${best.map(d => `<tr><td>${esc(d.name)}</td><td class="num">${d.avg.toFixed(1)}</td><td class="num">${d.n}</td></tr>`).join("")}</tbody></table>` : '<p class="muted">Braucht mindestens zwei Teilnahmen an einer Disziplin.</p>'}</div>
-    </div>`;
-  c.querySelectorAll("[data-game]").forEach(tr => tr.onclick = () => { location.hash = "spiel/" + encodeURIComponent(tr.dataset.game); });
-  c.querySelectorAll("[data-year]").forEach(tr => tr.onclick = () => { location.hash = "jahr/" + tr.dataset.year; });
-}
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="../js/mst.js?v=202610031500" data-base="../"></script>
+<script src="../js/spieltag-engine.js?v=202610031036"></script>
+<script src="../js/spieltag-stats.js?v=202610031036"></script>
+<script src="../js/spieltag-data.js?v=202610031036"></script>
+<script src="../js/spieltag-ui.js?v=202610031036"></script>
+<script src="../js/spieltag-app.js?v=202610031036"></script>
 </body>
 </html>

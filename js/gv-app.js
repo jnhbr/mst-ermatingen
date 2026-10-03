@@ -609,12 +609,12 @@ function feeReason(x){
 }
 function feeMessage(x){
   const v = V(), k = memberName(v.vorstand.kassier);
-  return `Hoi ${x.m.alias || x.m.short || x.m.name.split(" ")[0]}! 🍻 Dein MST-Jahresbeitrag ${Y}: ${CHF(x.fee.amount)}${feeReason(x)}.\n`
+  return `Hoi ${x.m.alias || x.m.short || x.m.name.split(" ")[0]}! Dein MST-Jahresbeitrag ${Y}: ${CHF(x.fee.amount)}${feeReason(x)}.\n`
     + `Bitte per Twint an ${k}${v.twint ? " (" + v.twint + ")" : ""}. Merci! – ${k.split(" ")[0]}`;
 }
 function groupMessage(list){
   const v = V(), k = memberName(v.vorstand.kassier);
-  return `🍻 MST-Jahresbeiträge ${Y} – bitte per Twint an ${k}${v.twint ? " (" + v.twint + ")" : ""}:\n`
+  return `MST-Jahresbeiträge ${Y} – bitte per Twint an ${k}${v.twint ? " (" + v.twint + ")" : ""}:\n`
     + list.map(x => `• ${x.m.alias || x.m.short} ${CHF(x.fee.amount).replace("CHF ", "CHF ")}`).join("\n")
     + `\n(Rabatt CHF ${num(v.discount)}.– pro Helfereinsatz ist schon abgezogen.) Merci!`;
 }

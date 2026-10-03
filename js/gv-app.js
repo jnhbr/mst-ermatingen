@@ -564,7 +564,7 @@ function viewFees(c){
   c.querySelectorAll("[data-wa]").forEach(b => b.onclick = async () => {
     const x = feeList().find(y => y.id === b.dataset.wa);
     const nr = waNumber((contacts[x.id] || {}).phone);
-    window.open(`https://wa.me/${nr}?text=${encodeURIComponent(feeMessage(x))}`, "_blank");
+    window.open(waLink(nr, feeMessage(x)), "_blank");
     await markRequested([x.id]);
     MST.log("finanzen", `Beitrag ${Y} ${x.m.name}: per WhatsApp angefordert`);
   });
@@ -580,7 +580,7 @@ function viewFees(c){
     const done = async () => { if(document.getElementById("waMark").checked){ await markRequested(open.map(x => x.id)); MST.log("finanzen", `Beiträge ${Y}: Sammelnachricht an ${open.length} Mitglieder`); } };
     dlg.querySelector("#waClose").onclick = () => dlg.close();
     dlg.querySelector("#waCopy").onclick = async () => { try{ await navigator.clipboard.writeText(document.getElementById("waText").value); dlg.querySelector("#waCopy").textContent = "kopiert ✓"; await done(); }catch(e){ alert("Kopieren ging nicht – Text markieren und kopieren."); } };
-    dlg.querySelector("#waSend").onclick = async () => { window.open("https://wa.me/?text=" + encodeURIComponent(document.getElementById("waText").value), "_blank"); await done(); dlg.close(); };
+    dlg.querySelector("#waSend").onclick = async () => { window.open(waLink("", document.getElementById("waText").value), "_blank"); await done(); dlg.close(); };
     dlg.showModal();
   };
   document.getElementById("reqAll").onclick = async () => {
@@ -591,6 +591,8 @@ function viewFees(c){
 }
 
 /* ---------- Twint-Anforderung per WhatsApp ---------- */
+// direkt api.whatsapp.com statt wa.me: die Weiterleitung von wa.me macht aus Emojis wie 🍻 ein «�»
+const waLink = (nr, text) => `https://api.whatsapp.com/send?${nr ? "phone=" + nr + "&" : ""}text=${encodeURIComponent(text)}`;
 function waNumber(phone){
   let d = String(phone || "").replace(/[^\d+]/g, "");
   if(d.startsWith("+")) d = d.slice(1);

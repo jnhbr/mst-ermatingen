@@ -10,7 +10,7 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
 - `finanzen/` – eigene Kachel, gleiche App `js/gv-app.js` mit `<div id="app" data-mode="finanzen">`: Jahresbeiträge
   (Rabatt aus dem AWB-Einsatzplan; bezahlte Zeilen grün), Kontobewegungen mit Belegen, AWB-Abrechnung. Jahr = Vereinsjahr,
   das mit der GV <jahr> endet (neues Vereinsjahr = auf der GV-Seite unter Einstellungen die nächste GV anlegen).
-  Kassier: Beitrag per WhatsApp anfordern (einzeln über wa.me mit Handynummer aus `contacts/<memberId>` – nur Vorstand
+  Kassier: Beitrag per WhatsApp anfordern (einzeln über api.whatsapp.com (nicht wa.me – zerschiesst Emojis) mit Handynummer aus `contacts/<memberId>` – nur Vorstand
   lesbar – oder Sammelnachricht), danach Status «Twint angefordert»; Belege (Foto/PDF, Fotos auf 1600 px verkleinert)
   hängen an der Buchung: `finance/<jahr>/belege/<buchung>_<n>` (Base64-Stücke), Metadaten in `bookings/<id>.beleg`.
 - `css/gv.css` – gemeinsame Bildschirm-Stile von GV und Finanzen (Druckstile bleiben in `gv/index.html`)

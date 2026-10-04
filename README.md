@@ -64,8 +64,11 @@ Bis 2.10.2026 lief Padel auf Netlify (mst-padel.netlify.app, Repo `MST-Ermatinge
 - TV-Ansicht: `spieltag/#tv` (Rangliste, Als Nächstes, Tagesablauf, Bierkapitän falls eingeloggt; QR-Code).
 - Selbst-Anmeldungen liegen in `spieltag/<jahr>/signups/<memberId>`; Teilnehmende = Liste + Anmeldungen.
   Anmelden geht auch mit einem Tipp direkt auf der Startseite (Balken «Anmelden für <Jahr>» in der Spieltag-Kachel).
-  Anmeldeschluss `spieltag/<jahr>.signupUntil` ("JJJJ-MM-TT", der Tag zählt noch): wird beim Speichern des Datums in der
-  Organisation automatisch auf 14 Tage davor gesetzt (änderbar), die Firestore-Regeln sperren danach (`MST.signupUntil()`).
+  Das Datum kommt aus dem Google Kalender (Termin «Minispieltag <jahr>», `KAL.spieltagDay()`): sobald Jan als Admin die
+  Startseite oder die Organisation öffnet, wird es nach `spieltag/<jahr>.date` übernommen (`MST.syncSpieltagDate()`).
+  Anmeldeschluss `spieltag/<jahr>.signupUntil` ("JJJJ-MM-TT", der Tag zählt noch) = automatisch 14 Tage davor (in der
+  Organisation änderbar); die Firestore-Regeln sperren danach. Anmeldung offen = Schalter `signupOpen`, nie gesetzt =
+  offen, sobald ein Anmeldeschluss gespeichert ist.
   Gäste (ohne Login) meldet nur der Admin in der Organisation an, optional mit Handynummer (`contacts/<pid>`, nur Vorstand).
   Bierkapitän: `spieltag/<jahr>/beer/<id>` { pid, l:0.5|0.33, at, by }.
 - Testmodus: `spieltag/?test` (als Admin) bzw. `spieltag/?test&als=m5` (als Mitglied Nr. 5) bzw. `spieltag/organisation/?test` – liest die echten Daten, Änderungen bleiben

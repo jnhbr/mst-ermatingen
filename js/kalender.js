@@ -77,6 +77,12 @@ const KAL = {
     if(a === b) return `${this.fmtDay(a, y)} · ${this.time(ev.start)}–${this.time(ev.end)}`;
     return `${this.fmtDay(a)} ${this.time(ev.start)} – ${this.fmtDay(b, y)} ${this.time(ev.end)}`;
   },
+  /* Datum des Termins «Minispieltag <jahr>» im Kalender ("JJJJ-MM-TT") – davon hängt der Anmeldeschluss ab */
+  spieltagDay(events, year){
+    const ev = (events || []).filter(e => /minispieltag/i.test(e.title) && this.firstDay(e).startsWith(String(year)))
+      .sort((a, b) => this.firstDay(a).localeCompare(this.firstDay(b)))[0];
+    return ev ? this.firstDay(ev) : null;
+  },
   countdown(ev){
     if(!this.isPast(ev) && this.firstDay(ev) <= this.today()) return "heute";
     const n = this.daysUntil(ev);

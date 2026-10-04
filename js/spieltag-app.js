@@ -242,7 +242,7 @@ function topCards(ov){
   let html = "";
   const pid = myPid();
   // Selbst-Anmeldung
-  if(viewer.memberId && yearDoc.signupOpen){
+  if(viewer.memberId && MST.signupFlag(yearDoc)){
     const inList = pid && participants().includes(pid);
     const s = signups[viewer.memberId];
     const open = MST.signupOpenNow(yearDoc), until = MST.signupUntil(yearDoc);

@@ -58,10 +58,24 @@ const MST = {
     d.setDate(d.getDate() - n);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   },
+  /* offen = Schalter in der Organisation; solange der nie gesetzt wurde: offen, sobald ein Anmeldeschluss gespeichert ist
+     (gleich wie in firestore.rules) */
+  signupFlag(y){ return !!y && (y.signupOpen != null ? !!y.signupOpen : !!y.signupUntil); },
   signupOpenNow(y){
-    if(!y || !y.signupOpen || y.closed) return false;
+    if(!this.signupFlag(y) || y.closed) return false;
     const u = this.signupUntil(y);
     return !u || new Date() <= new Date(u + "T23:59:59");
+  },
+  /* Admin: Datum des Spieltags aus dem Google Kalender übernehmen (Termin «Minispieltag <jahr>») und den
+     Anmeldeschluss mitziehen, solange er auf dem Standard (14 Tage davor) steht. Gibt true zurück, wenn geändert. */
+  async syncSpieltagDate(year, y, day){
+    if(!day || !y || y.closed || y.date === day) return false;
+    const upd = { date:day };
+    if(!y.signupUntil || y.signupUntil === (y.date ? this.isoMinusDays(y.date, this.SIGNUP_DAYS_BEFORE) : null))
+      upd.signupUntil = this.isoMinusDays(day, this.SIGNUP_DAYS_BEFORE);
+    await db.collection("spieltag").doc(String(year)).set(upd, { merge:true });
+    this.log("spieltag", `Spieltag ${year}: Datum ${day} aus dem Google Kalender übernommen` + (upd.signupUntil ? `, Anmeldeschluss ${upd.signupUntil}` : ""));
+    return true;
   },
   fmtDay(iso){
     return iso ? new Date(iso + "T12:00:00").toLocaleDateString("de-CH", { weekday:"short", day:"numeric", month:"long", year:"numeric" }) : "";

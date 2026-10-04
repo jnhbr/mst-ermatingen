@@ -105,7 +105,7 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['matches', 'scores', 'teamNames']);
     }
     // Selbst-Anmeldung: signups/<memberId> = { pid, status:"ja"|"nein", at }, nur solange offen
-    // (signupOpen) und bis zum Anmeldeschluss spieltag/<jahr>.signupUntil = "JJJJ-MM-TT" (der Tag zählt noch,
+    // (signupOpen bzw. Anmeldeschluss gesetzt) und bis zum Anmeldeschluss spieltag/<jahr>.signupUntil = "JJJJ-MM-TT" (der Tag zählt noch,
     // Schluss um Mitternacht Schweizer Sommerzeit = 22:00 UTC).
     function signupDeadline(iso) {
       let p = iso.split('-');
@@ -113,8 +113,10 @@ service cloud.firestore {
     }
     function signupIsOpen(year) {
       let y = get(/databases/$(database)/documents/spieltag/$(year)).data;
-      return y.get('signupOpen', false) == true
-        && (y.get('signupUntil', null) == null || request.time < signupDeadline(y.signupUntil));
+      let until = y.get('signupUntil', null);
+      // Schalter signupOpen; nie gesetzt = offen, sobald ein Anmeldeschluss gespeichert ist
+      return y.get('signupOpen', until != null) == true
+        && (until == null || request.time < signupDeadline(until));
     }
     match /spieltag/{year}/signups/{mid} {
       allow read: if true;

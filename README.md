@@ -32,6 +32,9 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
   Apps-Script-Web-App `apps-script/kalender/` (Einrichtung dort im README, URL in `js/kalender.js` → `API`).
   Eintragen/ändern/löschen nur Vorstand (Firebase-Token wird im Skript geprüft); Serientermine nur in Google.
   Abo-Feed = `<API>?format=ics`. Die Startseite zeigt die nächsten 3 Termine.
+- `fotos/` + `js/fotos.js` – Fotos in Ordnern nach Jahr, nur mit Login. Liegen im Google Drive «MST Fotos» (Jans Konto),
+  Zugriff über die Apps-Script-Web-App `apps-script/fotos/` (Einrichtung und Rechte im README dort). Alle Mitglieder laden hoch,
+  Ordner verwaltet der Vorstand.
 - `js/mst.js` – Firebase-Init (Projekt `minispieltag`), Login und die Instagram-Fusszeile (@minispieltag) auf allen Seiten
 - `css/mst.css` – gemeinsames Design (Schwarz/Gelb aus dem Wappen)
 - `firestore.rules` – Regeln für das ganze Firebase-Projekt (auch die Spieltag-Seite!),

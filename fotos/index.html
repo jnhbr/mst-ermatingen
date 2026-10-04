@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fotos · MST Ermatingen</title>
+<link rel="manifest" href="../manifest.json">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="icon" href="../assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#141311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/mst.css?v=202610041600">
+<style>
+  .muted{color:var(--muted);}
+  .notice{border:1px solid var(--yellow); background:var(--yellow-soft); border-radius:var(--radius-sm); padding:10px 12px; font-size:13px; margin:0 4px 14px;}
+  .notice.red{border-color:var(--red); background:var(--red-soft);}
+  .empty{color:var(--muted); font-size:14px; padding:20px 4px;}
+  .toolbar{justify-content:space-between; flex-wrap:wrap;}
+  .new-album{display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;}
+  .new-album label{display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);}
+  .new-album input[name=year]{width:90px;}
+  .new-album input[name=name]{width:220px; max-width:60vw;}
+
+  /* ---------- Jahre & Ordner ---------- */
+  .year-head{display:flex; align-items:baseline; gap:10px; margin:22px 4px 10px; font-family:var(--font-display); text-transform:uppercase; font-size:30px; line-height:1;}
+  .year-head small{font-family:var(--font-mono); font-size:11px; color:var(--muted); text-transform:none; letter-spacing:.04em;}
+  .year-head:first-of-type{margin-top:4px;}
+  .albums{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap:12px; margin:0 4px;}
+  .album{display:flex; flex-direction:column; border-radius:var(--radius); background:var(--bg-elev); border:1px solid var(--line); overflow:hidden; color:var(--white); text-decoration:none;}
+  .album:hover{border-color:var(--yellow);}
+  .album .cover{aspect-ratio:4/3; background:var(--bg-elev-2) center/cover no-repeat; display:flex; align-items:center; justify-content:center; font-size:34px; color:var(--muted-2);}
+  .album .meta{padding:10px 14px 12px;}
+  .album .nm{font-family:var(--font-display); text-transform:uppercase; font-size:19px; letter-spacing:.02em;}
+  .album .ct{font-family:var(--font-mono); font-size:11px; color:var(--muted);}
+
+  /* ---------- Ein Ordner ---------- */
+  .album-bar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:0 4px 14px;}
+  .album-bar h2{font-family:var(--font-display); text-transform:uppercase; font-size:28px; margin:0 auto 0 0; line-height:1;}
+  .album-bar h2 small{font-family:var(--font-mono); font-size:12px; color:var(--yellow); margin-right:8px; letter-spacing:.06em;}
+  .upload-btn{position:relative; overflow:hidden;}
+  .upload-btn input{position:absolute; inset:0; opacity:0; cursor:pointer;}
+  .progress{margin:0 4px 14px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--bg-elev); border:1px solid var(--line); font-size:13px;}
+  .progress .bar{height:6px; background:var(--bg-elev-3); border-radius:3px; margin-top:8px; overflow:hidden;}
+  .progress .bar span{display:block; height:100%; background:var(--yellow); transition:width .2s;}
+  .photos{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(150px, 27vw), 1fr)); gap:6px; margin:0 4px;}
+  .photo{aspect-ratio:1; border:0; padding:0; border-radius:6px; overflow:hidden; background:var(--bg-elev-2); cursor:zoom-in;}
+  .photo img{width:100%; height:100%; object-fit:cover; display:block;}
+
+  /* ---------- Grossansicht ---------- */
+  .lightbox{position:fixed; inset:0; z-index:50; background:rgba(10,10,9,.96); display:flex; flex-direction:column;}
+  .lightbox[hidden]{display:none;}
+  .lb-top{display:flex; align-items:center; gap:10px; padding:10px 14px; font-size:12.5px; color:var(--muted);}
+  .lb-top .info{margin-right:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lb-top a, .lb-top button{color:var(--white); background:var(--bg-elev-2); border:1px solid var(--line-strong); border-radius:var(--radius-sm); padding:7px 11px; font-size:13px; text-decoration:none; cursor:pointer; font-family:inherit;}
+  .lb-top .del{border-color:var(--red); color:var(--red); background:none;}
+  .lb-stage{flex:1; position:relative; display:flex; align-items:center; justify-content:center; min-height:0; padding:0 8px 14px;}
+  .lb-stage img{max-width:100%; max-height:100%; object-fit:contain; border-radius:4px;}
+  .lb-nav{position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,.45); border:1px solid var(--line-strong); color:var(--white); width:44px; height:44px; border-radius:50%; font-size:20px; cursor:pointer;}
+  .lb-nav.prev{left:10px;} .lb-nav.next{right:10px;}
+  .lb-nav[hidden]{display:none;}
+</style>
+</head>
+<body>
+<div id="gate"><div class="loading">lade …</div></div>
+<div id="app"></div>
+<div class="lightbox" id="lb" hidden>
+  <div class="lb-top"><span class="info" id="lbInfo"></span><a id="lbDl" target="_blank" rel="noopener">⬇ Original</a><button class="del" id="lbDel" type="button" hidden>Löschen</button><button id="lbClose" type="button">✕</button></div>
+  <div class="lb-stage"><button class="lb-nav prev" id="lbPrev" type="button">‹</button><img id="lbImg" alt=""><button class="lb-nav next" id="lbNext" type="button">›</button></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../js/mst.js?v=202610041600" data-base="../"></script>
+<script src="../js/fotos.js?v=202610041600"></script>
+<script>
+/* ===================== Fotos =====================
+   Ordner nach Jahr (Google Drive «MST Fotos»). Alle Mitglieder sehen und laden hoch,
+   Ordner anlegen/umbenennen/löschen nur der Vorstand. Löschen eines Fotos: Vorstand
+   oder wer es hochgeladen hat. */
+const app = document.getElementById("app");
+let me = null, years = null, album = null, photos = [], loadErr = "", busy = null, lbIndex = -1;
+const isVorstand = () => !!(me && me.vorstand);
+const myKey = () => isVorstand() ? ((auth.currentUser && auth.currentUser.email) || "").toLowerCase() : me.id;
+
+if(FOTOS.localTest()){
+  // lokaler Test ohne Firebase-Login (nur localhost, siehe js/fotos.js)
+  const v = new URLSearchParams(location.search).get("als") === "vorstand";
+  document.getElementById("gate").hidden = true;
+  MST.user = v ? { id:"m10", name:"Test Vorstand", short:"Vorstand", admin:true, role:"admin", vorstand:true } : { id:"m14", name:"Test Mitglied", short:"Mitglied", admin:false };
+  start(MST.user);
+} else {
+  MST.start(start);
+}
+
+function start(user){
+  me = user;
+  window.addEventListener("hashchange", route);
+  route();
+}
+function route(){
+  const m = location.hash.match(/^#o\/(.+)$/);
+  if(m) openAlbum(decodeURIComponent(m[1])); else { album = null; photos = []; loadYears(); }
+}
+async function loadYears(){
+  draw();
+  if(!FOTOS.ready()) return;
+  try{ years = (await FOTOS.call("list")).years; loadErr = ""; }catch(e){ console.error(e); loadErr = e.message; }
+  draw();
+}
+async function openAlbum(id){
+  album = { id, name:"", year:"" }; photos = []; draw();
+  try{ const d = await FOTOS.call("album", { id }); album = d.album; photos = d.photos; loadErr = ""; }
+  catch(e){ console.error(e); loadErr = e.message; }
+  draw();
+}
+
+/* ---------- Seite ---------- */
+function draw(){
+  const total = (years || []).reduce((s, y) => s + y.albums.reduce((t, a) => t + a.count, 0), 0);
+  app.innerHTML = `
+    <div class="topbar">
+      <span class="crumbs"><a href="../">MST Ermatingen</a> / ${album ? '<a href="#">Fotos</a> / ' + esc(album.year || "") : "Fotos"}</span>
+      <div id="userbar"></div>
+    </div>
+    <div class="hero">
+      <div class="hero-left">
+        <img class="hero-logo" src="../assets/logo.png" alt="">
+        <div class="hero-titles">
+          <span class="eyebrow">Google Drive «MST Fotos»</span>
+          <h1 class="hero-title">Fotos</h1>
+          <p class="hero-sub">Nach Jahr sortiert – alle Mitglieder können Fotos hochladen.</p>
+        </div>
+      </div>
+      ${years ? `<div class="hero-stats"><div class="stat-chip"><span class="num">${total}</span><span class="lbl">Fotos</span></div>
+        <div class="stat-chip"><span class="num">${years.reduce((s, y) => s + y.albums.length, 0)}</span><span class="lbl">Ordner</span></div></div>` : ""}
+    </div>
+    <div class="court-line"></div>
+    ${!FOTOS.ready() ? '<div class="notice">Die Fotos werden gerade mit Google Drive verbunden – bald geht es hier los.</div>' : ""}
+    ${loadErr ? `<div class="notice red">${esc(loadErr)}</div>` : ""}
+    <section id="content"></section>`;
+  MST.renderUserBar();
+  const c = document.getElementById("content");
+  if(album) drawAlbum(c); else drawYears(c);
+}
+
+function drawYears(c){
+  if(!FOTOS.ready()) return;
+  const thisYear = String(new Date().getFullYear());
+  c.innerHTML = `
+    ${isVorstand() ? `<div class="toolbar"><form class="new-album" id="newAlbum">
+      <label>Jahr<input name="year" type="number" min="2015" max="2100" value="${thisYear}" required></label>
+      <label>Neuer Ordner<input name="name" placeholder="z. B. Minispieltag, Afterworkbar" required maxlength="80"></label>
+      <button class="btn-primary" type="submit">+ Ordner</button></form><span class="small muted" id="naMsg"></span></div>` : ""}
+    ${years === null ? '<p class="empty">lade Ordner …</p>'
+      : !years.some(y => y.albums.length) ? `<p class="empty">Noch keine Ordner.${isVorstand() ? " Oben einen anlegen – z. B. «Minispieltag» für " + thisYear + "." : " Der Vorstand legt sie an."}</p>`
+      : years.filter(y => y.albums.length).map(y => `
+        <div class="year-head">${esc(y.year)} <small>${y.albums.length} Ordner · ${y.albums.reduce((t, a) => t + a.count, 0)} Fotos</small></div>
+        <div class="albums">${y.albums.map(a => `<a class="album" href="#o/${encodeURIComponent(a.id)}">
+          <span class="cover" ${a.cover ? `style="background-image:url('${FOTOS.img(a.cover, 500)}')"` : ""}>${a.cover ? "" : "📷"}</span>
+          <span class="meta"><span class="nm">${esc(a.name)}</span><br><span class="ct">${a.count} Foto${a.count === 1 ? "" : "s"}</span></span></a>`).join("")}</div>`).join("")}`;
+  const f = document.getElementById("newAlbum");
+  if(f) f.onsubmit = async e => {
+    e.preventDefault();
+    const msg = document.getElementById("naMsg");
+    f.querySelector("button").disabled = true; msg.textContent = "lege an …";
+    try{
+      const d = await FOTOS.call("createAlbum", { year:f.year.value, name:f.name.value.trim() });
+      if(!FOTOS.localTest()) MST.log("fotos", `Foto-Ordner «${d.album.name}» (${d.album.year}) angelegt`);
+      location.hash = "o/" + encodeURIComponent(d.album.id);
+    }catch(err){ msg.textContent = err.message; f.querySelector("button").disabled = false; }
+  };
+}
+
+function drawAlbum(c){
+  c.innerHTML = `
+    <div class="album-bar">
+      <h2><small>${esc(album.year || "")}</small>${esc(album.name || "…")}</h2>
+      <a class="btn-ghost" href="#" style="text-decoration:none">← Alle Ordner</a>
+      ${isVorstand() && album.name ? '<button class="btn-ghost" id="ren" type="button">Umbenennen</button><button class="btn-danger" id="delAlbum" type="button">Ordner löschen</button>' : ""}
+      ${album.name ? `<span class="btn-primary upload-btn">📷&nbsp; Fotos hochladen<input type="file" id="files" accept="image/*" multiple ${busy ? "disabled" : ""}></span>` : ""}
+    </div>
+    ${busy ? `<div class="progress">${esc(busy.text)}<div class="bar"><span style="width:${Math.round(busy.done / busy.total * 100)}%"></span></div></div>` : ""}
+    ${!album.name && !loadErr ? '<p class="empty">lade Fotos …</p>'
+      : !photos.length ? '<p class="empty">Noch keine Fotos in diesem Ordner – lade die ersten hoch.</p>'
+      : `<div class="photos">${photos.map((p, i) => `<button class="photo" data-i="${i}" type="button"><img loading="lazy" src="${FOTOS.img(p.id, 400)}" alt="${esc(p.name)}"></button>`).join("")}</div>`}`;
+  c.querySelectorAll("[data-i]").forEach(b => b.onclick = () => showPhoto(+b.dataset.i));
+  const inp = document.getElementById("files");
+  if(inp) inp.onchange = () => upload([...inp.files]);
+  const ren = document.getElementById("ren");
+  if(ren) ren.onclick = async () => {
+    const n = prompt("Neuer Name für den Ordner:", album.name);
+    if(!n || n.trim() === album.name) return;
+    try{ album = (await FOTOS.call("renameAlbum", { id:album.id, name:n.trim() })).album; draw(); }catch(e){ alert(e.message); }
+  };
+  const del = document.getElementById("delAlbum");
+  if(del) del.onclick = async () => {
+    if(!confirm(`Ordner «${album.name}» mit ${photos.length} Fotos löschen? (Liegt danach 30 Tage im Drive-Papierkorb.)`)) return;
+    try{
+      await FOTOS.call("deleteAlbum", { id:album.id });
+      if(!FOTOS.localTest()) MST.log("fotos", `Foto-Ordner «${album.name}» (${album.year}) gelöscht`);
+      location.hash = "";
+    }catch(e){ alert(e.message); }
+  };
+}
+
+/* Fotos nacheinander hochladen (verkleinert auf 2400 px) */
+async function upload(files){
+  files = files.filter(f => /^image\//.test(f.type) || /\.(heic|heif)$/i.test(f.name));
+  if(!files.length) return;
+  const target = album.id, errors = [];
+  busy = { done:0, total:files.length, text:`Lade 1 von ${files.length} hoch …` }; draw();
+  for(const f of files){
+    try{
+      const prep = await FOTOS.prepare(f);
+      const d = await FOTOS.call("upload", Object.assign({ album:target, byName:me.short || me.name }, prep));
+      if(album && album.id === target){ photos.push(d.photo); }
+    }catch(e){ console.error(e); errors.push(`${f.name}: ${e.message}`); }
+    busy.done++; busy.text = busy.done < busy.total ? `Lade ${busy.done + 1} von ${busy.total} hoch …` : "Fertig";
+    if(album && album.id === target) draw();
+  }
+  busy = null;
+  if(!FOTOS.localTest() && files.length > errors.length) MST.log("fotos", `${files.length - errors.length} Foto(s) in «${album.name}» (${album.year}) hochgeladen`);
+  draw();
+  if(errors.length) alert("Nicht geklappt:\n" + errors.join("\n"));
+}
+
+/* ---------- Grossansicht ---------- */
+const lb = document.getElementById("lb");
+function showPhoto(i){
+  if(i < 0 || i >= photos.length) return;
+  lbIndex = i;
+  const p = photos[i];
+  document.getElementById("lbImg").src = FOTOS.img(p.id, 2000);
+  document.getElementById("lbInfo").textContent = `${i + 1} / ${photos.length}${p.byName ? " · von " + p.byName : ""} · ${new Date(p.at).toLocaleDateString("de-CH")}`;
+  document.getElementById("lbDl").href = FOTOS.download(p.id);
+  document.getElementById("lbDel").hidden = !(isVorstand() || p.by === myKey());
+  document.getElementById("lbPrev").hidden = i === 0;
+  document.getElementById("lbNext").hidden = i === photos.length - 1;
+  lb.hidden = false;
+}
+function closePhoto(){ lb.hidden = true; lbIndex = -1; document.getElementById("lbImg").removeAttribute("src"); }
+document.getElementById("lbClose").onclick = closePhoto;
+document.getElementById("lbPrev").onclick = () => showPhoto(lbIndex - 1);
+document.getElementById("lbNext").onclick = () => showPhoto(lbIndex + 1);
+lb.addEventListener("click", e => { if(e.target.classList.contains("lb-stage")) closePhoto(); });
+document.addEventListener("keydown", e => {
+  if(lb.hidden) return;
+  if(e.key === "Escape") closePhoto();
+  if(e.key === "ArrowLeft") showPhoto(lbIndex - 1);
+  if(e.key === "ArrowRight") showPhoto(lbIndex + 1);
+});
+// Wischen auf dem Handy
+let touchX = null;
+lb.addEventListener("touchstart", e => { touchX = e.touches[0].clientX; }, { passive:true });
+lb.addEventListener("touchend", e => {
+  if(touchX == null) return;
+  const dx = e.changedTouches[0].clientX - touchX; touchX = null;
+  if(Math.abs(dx) > 50) showPhoto(lbIndex + (dx < 0 ? 1 : -1));
+});
+document.getElementById("lbDel").onclick = async () => {
+  const p = photos[lbIndex];
+  if(!p || !confirm("Dieses Foto löschen?")) return;
+  try{
+    await FOTOS.call("delete", { id:p.id });
+    photos.splice(lbIndex, 1);
+    if(photos.length) showPhoto(Math.min(lbIndex, photos.length - 1)); else closePhoto();
+    draw();
+  }catch(e){ alert(e.message); }
+};
+</script>
+</body>
+</html>

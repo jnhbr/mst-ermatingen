@@ -46,7 +46,7 @@ const shareToggle = () => canFin() ? `<label class="check-label small" style="ma
 function bindShareToggle(){
   const t = document.getElementById("finShare");
   if(t) t.onchange = async () => {
-    await db.collection("finance").doc(Y).set({ shared:t.checked }, { merge:true });
+    await MST.quick(db.collection("finance").doc(Y).set({ shared:t.checked }, { merge:true }));
     MST.log("finanzen", `Finanzen ${vjLabel()} ${t.checked ? "für Mitglieder freigegeben" : "nur noch für den Vorstand"}`);
   };
 }
@@ -465,13 +465,13 @@ function viewTraktanden(c){
   document.getElementById("antragForm").onsubmit = async e => {
     e.preventDefault();
     const f = e.target;
-    await db.collection("gv").doc(Y).collection("antraege").add({ title:f.title.value.trim(), text:f.text.value.trim(), by:me.id, byName:me.short || me.name, at:Date.now(), status:"neu" });
+    await MST.quick(db.collection("gv").doc(Y).collection("antraege").add({ title:f.title.value.trim(), text:f.text.value.trim(), by:me.id, byName:me.short || me.name, at:Date.now(), status:"neu" }));
     MST.log("gv", `Traktandum vorgeschlagen: ${f.title.value.trim()}`);
     f.reset();
   };
   c.querySelectorAll("[data-delA]").forEach(b => b.onclick = () => { if(confirm("Vorschlag löschen?")) db.collection("gv").doc(Y).collection("antraege").doc(b.dataset.dela || b.getAttribute("data-delA")).delete(); });
   c.querySelectorAll("[data-acc]").forEach(b => b.onclick = async () => {
-    await db.collection("gv").doc(Y).collection("antraege").doc(b.dataset.acc).update({ status:"aufgenommen" });
+    await MST.quick(db.collection("gv").doc(Y).collection("antraege").doc(b.dataset.acc).update({ status:"aufgenommen" }));
     // sicherstellen, dass ein Traktandum die Vorschläge anzeigt
     const list = (gv.traktanden || []).slice();
     if(!list.some(t => t.antraege)){
@@ -574,7 +574,7 @@ function viewFees(c){
     if(el.type === "checkbox") patch[k] = el.checked;
     else patch[k] = el.value;
     if(k === "status") patch.paidAt = el.value === "bezahlt" ? new Date().toISOString().slice(0, 10) : null;
-    await ref(id).set(patch, { merge:true });
+    await MST.quick(ref(id).set(patch, { merge:true }));
     if(k === "status") MST.log("finanzen", `Beitrag ${Y} ${memberName(id)}: ${el.value}`);
   });
   c.querySelectorAll("[data-phone]").forEach(el => el.onchange = async () => {

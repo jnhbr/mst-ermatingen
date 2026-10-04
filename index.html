@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/mst.css?v=202610041800">
+<link rel="stylesheet" href="css/mst.css?v=202610042100">
 <style>
   .home-hero{position:relative; display:flex; align-items:center; gap:22px; padding:34px 4px 26px; overflow:hidden;}
   .home-hero .logo{width:96px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
@@ -56,15 +56,35 @@
   @media (max-width:720px){ .log-list li{grid-template-columns:1fr 1fr;} .log-text{grid-column:1/-1;} }
   .form-msg{font-size:12.5px; color:var(--muted); margin:8px 0 0; min-height:1.2em;}
 
-  /* Nächste Termine aus dem Kalender */
-  .next-events{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr)); gap:8px; margin:0 4px 16px;}
-  .next-ev{display:flex; gap:12px; align-items:center; padding:10px 14px; border-radius:var(--radius-sm); background:var(--bg-elev); border:1px solid var(--line); color:var(--white); text-decoration:none; min-width:0;}
-  .next-ev:first-child{border-color:var(--yellow);}
-  .next-ev:hover{border-color:var(--yellow);}
-  .next-ev .ne-when{font-family:var(--font-mono); font-size:10.5px; color:var(--yellow); text-transform:uppercase; letter-spacing:.06em; white-space:nowrap;}
-  .next-ev .ne-title{font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .next-ev .ne-sub{font-size:12px; color:var(--muted);}
-  .next-ev > span:last-child{min-width:0;}
+  /* Nächste Termine aus dem Kalender – mit Zu-/Absage direkt hier */
+  .next-box{margin:0 4px 22px;}
+  .next-box[hidden]{display:none;}
+  .next-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:0 0 8px;}
+  .next-head h2{font-family:var(--font-display); text-transform:uppercase; font-size:21px; font-weight:600; margin:0;}
+  .next-head a{font-family:var(--font-mono); font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; text-decoration:none; white-space:nowrap;}
+  .next-head a:hover{color:var(--yellow);}
+  .next-events{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); gap:10px;}
+  .next-ev{display:flex; flex-direction:column; border-radius:var(--radius); background:var(--bg-elev); border:1px solid var(--line); min-width:0; overflow:hidden;}
+  .next-ev.todo{border-color:var(--yellow);}
+  .ne-head{display:flex; gap:12px; align-items:center; padding:12px 14px; color:var(--white); text-decoration:none; min-width:0;}
+  .ne-head:hover .ne-title{color:var(--yellow);}
+  .ne-date{flex-shrink:0; width:54px; text-align:center; border:1px solid var(--line-strong); border-radius:var(--radius-sm); padding:6px 0; background:var(--bg-elev-2);}
+  .ne-date span{display:block; font-family:var(--font-mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); line-height:1.2;}
+  .ne-date .wd{color:var(--yellow);}
+  .ne-date b{display:block; font-family:var(--font-display); font-weight:400; font-size:28px; line-height:1;}
+  .ne-body{min-width:0; display:flex; flex-direction:column; gap:1px;}
+  .ne-when{font-family:var(--font-mono); font-size:10.5px; color:var(--yellow); text-transform:uppercase; letter-spacing:.06em; white-space:nowrap;}
+  .ne-title{font-weight:600; font-size:15.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .ne-sub{font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .ne-act{border-top:1px solid var(--line); padding:10px 14px 12px; display:flex; flex-direction:column; gap:7px; margin-top:auto;}
+  .ne-q{display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12px; color:var(--muted); min-width:0;}
+  .ne-q b{font-family:var(--font-display); font-weight:400; font-size:16px; letter-spacing:.03em; text-transform:uppercase; color:var(--yellow); white-space:nowrap;}
+  .ne-q b.done{color:var(--muted);}
+  .ne-q span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+  .ne-act .rsvp-btn{padding:10px 4px;}
+  .ne-link{font-size:12.5px; color:var(--muted); text-decoration:none;}
+  .ne-link:hover{color:var(--yellow);}
+  .next-ev .tile-signup{margin-top:auto;}
   .tile.insta .tile-icon{color:var(--yellow);}
 
   /* Spieltag-Kachel mit Anmelde-Balken */
@@ -113,7 +133,10 @@
   </div>
   <div class="court-line"></div>
 
-  <div class="next-events" id="nextEvents" hidden></div>
+  <section class="next-box" id="nextBox" hidden>
+    <div class="next-head"><h2>Nächste Termine</h2><a href="kalender/">Alle Termine →</a></div>
+    <div class="next-events" id="nextEvents"></div>
+  </section>
 
   <div class="tiles">
     <a class="tile active tile-me" href="ich/">
@@ -141,7 +164,7 @@
         <span class="tile-title">Spieltag</span>
         <span class="tile-text">Ermatinger Minispieltag: Spiele, Live-Rangliste und die Historie seit 2020.</span>
       </a>
-      <div class="tile-signup" id="signupBar" hidden></div>
+      <div class="tile-signup signup-slot" id="signupBar" hidden></div>
     </div>
     <a class="tile" href="spieltag/organisation/" id="orgTile" hidden>
       <span class="tile-go">Admin →</span>
@@ -188,10 +211,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="js/mst.js?v=202610041800" data-base=""></script>
-<script src="js/kalender.js?v=202610041800"></script>
-<script src="js/fotos.js?v=202610041800"></script>
-<script src="js/jahreswechsel.js?v=202610041800"></script>
+<script src="js/mst.js?v=202610042100" data-base=""></script>
+<script src="js/kalender.js?v=202610042100"></script>
+<script src="js/fotos.js?v=202610042100"></script>
+<script src="js/jahreswechsel.js?v=202610042100"></script>
 <script>
 MST.start((user) => {
   document.getElementById("greeting").textContent = `Hoi ${user.short}!`;
@@ -202,48 +225,74 @@ MST.start((user) => {
   if(user.admin){ document.getElementById("orgTile").hidden = false; renderAdmin(); }
 });
 
-/* ---------- Die nächsten drei Termine (Kalender) ---------- */
+/* ---------- Die nächsten drei Termine – zu- oder absagen direkt hier (wie im Kalender) ---------- */
+let homeEvents = [];
 async function showNextEvents(){
   if(!KAL.ready()) return;   // Kachel erst zeigen, wenn die Google-Brücke eingerichtet ist
   document.getElementById("kalTile").hidden = false;
-  const el = document.getElementById("nextEvents");
-  let list = [];
-  const draw = l => {
-    if(l) list = l;
-    const next = list.filter(e => !KAL.isPast(e)).slice(0, 3);
-    el.hidden = !next.length;
-    el.innerHTML = next.map(e => `<a class="next-ev" href="kalender/?termin=${encodeURIComponent(e.key)}">
-      <span style="font-size:22px">${KAL.kind(e).icon}</span>
-      <span><span class="ne-when">${esc(KAL.countdown(e))}</span> ${KAL.rsvpBadge(e, MST.user.id)}<br><span class="ne-title">${esc(e.title)}</span><br><span class="ne-sub">${esc(KAL.when(e))}</span></span>
-    </a>`).join("");
-    // Kachel «Mein MST»: offene Antworten zählen
-    const open = list.filter(e => KAL.rsvpAllowed(e) && !KAL.myRsvp(e, MST.user.id)).length;
-    document.getElementById("meText").innerHTML = open
-      ? `<b style="color:var(--yellow)">${open} Termin${open === 1 ? "" : "e"} ohne deine Antwort</b> – dazu Spieltage, Padel, Einsätze und Jahresbeitrag.`
-      : "Deine Termine und Zusagen, Spieltage, Padel, Afterworkbar-Einsätze und dein Jahresbeitrag auf einen Blick.";
-  };
+  const draw = l => { if(l) homeEvents = l; drawNextEvents(); };
   KAL.watchRsvps(() => draw());
   const c = KAL.cached();
   if(c) draw(c.events);
   try{ draw(await KAL.load(false)); }catch(e){ console.warn("Kalender", e); }
 }
+function drawNextEvents(){
+  const el = document.getElementById("nextEvents"), me = MST.user.id;
+  const next = homeEvents.filter(e => !KAL.isPast(e)).slice(0, 3);
+  document.getElementById("nextBox").hidden = !next.length;
+  const part = (d, o) => d.toLocaleDateString("de-CH", o).replace(".", "");
+  el.innerHTML = next.map(e => {
+    const k = KAL.kind(e), d = KAL.keyDate(KAL.firstDay(e)), mine = KAL.myRsvp(e, me);
+    let act = "";
+    if(KAL.rsvpAllowed(e)){
+      const yes = KAL.rsvpList(e).ja;
+      act = `<div class="ne-act">
+        <div class="ne-q"><b class="${mine ? "done" : ""}">${mine ? "Deine Antwort" : "Dabei?"}</b><span>${yes.length ? `${yes.length} dabei: ${esc(yes.map(x => MST.nameOf(x.id)).join(", "))}` : "noch keine Zusage"}</span></div>
+        ${KAL.rsvpButtons(e, me)}
+      </div>`;
+    } else if(/^spieltag\//.test(k.link)){
+      act = `<div class="tile-signup signup-slot" data-year="${esc(KAL.firstDay(e).slice(0, 4))}" hidden></div>`;   // füllt drawSignup()
+    } else if(/^padel\//.test(k.link)){
+      act = `<div class="ne-act"><a class="ne-link" href="padel/">Verfügbarkeit in Padel eintragen →</a></div>`;
+    }
+    return `<div class="next-ev ${KAL.rsvpAllowed(e) && !mine ? "todo" : ""}" data-key="${esc(e.key)}">
+      <a class="ne-head" href="kalender/?termin=${encodeURIComponent(e.key)}">
+        <span class="ne-date"><span class="wd">${esc(part(d, { weekday:"short" }))}</span><b>${d.getDate()}</b><span>${esc(part(d, { month:"short" }))}${d.getFullYear() !== new Date().getFullYear() ? " " + String(d.getFullYear()).slice(2) : ""}</span></span>
+        <span class="ne-body"><span class="ne-when">${esc(KAL.countdown(e))}</span><span class="ne-title">${k.icon} ${esc(e.title)}</span><span class="ne-sub">${esc(KAL.when(e))}${e.location ? " · " + esc(e.location) : ""}</span></span>
+      </a>${act}
+    </div>`;
+  }).join("");
+  // Antippen speichert sofort (nochmals antippen = Antwort zurückziehen); die Anzeige wechselt über watchRsvps
+  el.querySelectorAll("[data-rsvp]").forEach(b => b.onclick = () => {
+    const e = homeEvents.find(x => x.key === b.closest("[data-key]").dataset.key);
+    if(e) KAL.toggleRsvp(e, me, b.dataset.rsvp, "Startseite");
+  });
+  // Kachel «Mein MST»: offene Antworten zählen
+  const open = homeEvents.filter(e => KAL.rsvpAllowed(e) && !KAL.myRsvp(e, me)).length;
+  document.getElementById("meText").innerHTML = open
+    ? `<b style="color:var(--yellow)">${open} Termin${open === 1 ? "" : "e"} ohne deine Antwort</b> – dazu Spieltage, Padel, Einsätze und Jahresbeitrag.`
+    : "Deine Termine und Zusagen, Spieltage, Padel, Afterworkbar-Einsätze und dein Jahresbeitrag auf einen Blick.";
+  drawSignup();   // der Spieltag-Termin hat einen eigenen Anmelde-Knopf
+}
 
-/* ---------- Spieltag-Kachel: «Anmelden für <Jahr>» mit einem Tipp ---------- */
+/* ---------- Spieltag: «Anmelden für <Jahr>» mit einem Tipp (Spieltag-Kachel und Spieltag-Termin oben) ---------- */
 // gleiche Daten wie die Spieltag-Seite: spieltag/<jahr>/signups/<memberId> = { pid, status, at }
-const signupState = { year:null, yd:null, pid:null, signup:null, busy:false };
+const signupState = { year:null, yd:null, pid:null, signup:null };
+let signupOff = [];
 async function showSignup(){
   const s = signupState, me = MST.user.id;
   try{
-    const set = await db.collection("spieltagMeta").doc("settings").get();
+    // sofort vom Gerät; wechselt das aktuelle Jahr, baut sich die Anmeldung neu auf
+    const set = await MST.fast(db.collection("spieltagMeta").doc("settings"), () => showSignup());
+    signupOff.forEach(f => f()); signupOff = [];
     s.year = set.exists ? set.data().currentYear : null;
-    if(!s.year) return;
+    if(!s.year){ s.yd = null; drawSignup(); return; }
     loadCalDay();
-    db.collection("spieltag").doc(s.year).onSnapshot(d => { s.yd = d.exists ? d.data() : null; drawSignup(); syncFromCalendar(); }, e => console.warn("Spieltag", e));
-    db.collection("spieltag").doc(s.year).collection("signups").doc(me)
-      .onSnapshot(d => { s.signup = d.exists ? d.data() : null; drawSignup(); }, e => console.warn("Anmeldung", e));
-    const p = await db.collection("spieltagPersons").where("memberId", "==", me).limit(1).get();
+    signupOff.push(db.collection("spieltag").doc(s.year).onSnapshot(d => { s.yd = d.exists ? d.data() : null; drawSignup(); syncFromCalendar(); }, e => console.warn("Spieltag", e)));
+    signupOff.push(db.collection("spieltag").doc(s.year).collection("signups").doc(me)
+      .onSnapshot(d => { s.signup = d.exists ? d.data() : null; drawSignup(); }, e => console.warn("Anmeldung", e)));
+    const p = await MST.fast(db.collection("spieltagPersons").where("memberId", "==", me).limit(1));
     s.pid = p.empty ? null : p.docs[0].id;
-    drawSignup();
   }catch(e){ console.warn("Anmeldung", e); }
 }
 /* Datum kommt aus dem Google Kalender (Termin «Minispieltag <jahr>») – für alle sofort sichtbar;
@@ -264,26 +313,32 @@ async function syncFromCalendar(){
 // angemeldet = selbst bestätigt (oder von Jan eingetragen) – eine übernommene Vorjahresliste zählt nicht
 function signedUp(){ return !!(signupState.signup && signupState.signup.status === "ja"); }
 function drawSignup(){
-  const s = Object.assign({}, signupState, { yd:MST.withDate(signupState.yd, calDay) }), el = document.getElementById("signupBar");
-  if(!s.yd || s.yd.closed){ el.hidden = true; return; }
+  const s = Object.assign({}, signupState, { yd:MST.withDate(signupState.yd, calDay) });
+  // Plätze: Balken in der Spieltag-Kachel + der Spieltag-Termin dieses Jahres bei den nächsten Terminen
+  const fill = (hidden, html) => document.querySelectorAll(".signup-slot").forEach(el => {
+    const ok = !el.dataset.year || el.dataset.year === String(s.year);
+    el.hidden = hidden || !ok;
+    el.innerHTML = ok ? html : "";
+  });
+  if(!s.yd || s.yd.closed){ fill(true, ""); return; }
   const open = MST.signupOpenNow(s.yd), until = MST.signupUntil(s.yd), inList = signedUp();
   const day = s.yd.date ? MST.fmtDay(s.yd.date) : "Datum folgt";
   if(!open && !inList){
     // Anmeldung noch nicht geöffnet → nichts zeigen; nach dem Schluss nur ein Hinweis
-    el.hidden = !(MST.signupFlag(s.yd) && until);
-    el.innerHTML = `<span class="signup-note">Anmeldeschluss für ${esc(s.year)} war am ${esc(MST.fmtDay(until))} – melde dich direkt bei Jan.</span>`;
+    fill(!(MST.signupFlag(s.yd) && until), `<span class="signup-note">Anmeldeschluss für ${esc(s.year)} war am ${esc(MST.fmtDay(until))} – melde dich direkt bei Jan.</span>`);
     return;
   }
-  el.hidden = false;
-  el.innerHTML = inList
-    ? `<div class="signup-done"><span>✓ Angemeldet für ${esc(s.year)}</span>${open ? '<button class="link-btn" id="signOff" type="button">abmelden</button>' : ""}</div>
+  fill(false, inList
+    ? `<div class="signup-done"><span>✓ Angemeldet für ${esc(s.year)}</span>${open ? '<button class="link-btn" data-sign="nein" type="button">abmelden</button>' : ""}</div>
        <span class="signup-note">${esc(day)}${s.yd.place ? " · " + esc(s.yd.place) : ""}</span>`
-    : `<button class="signup-btn" id="signOn" type="button">Anmelden für ${esc(s.year)}</button>
-       <span class="signup-note">${esc(day)}${until ? ` · Anmeldeschluss <b>${esc(MST.fmtDay(until))}</b>` : ""}</span>`;
-  const on = document.getElementById("signOn"), off = document.getElementById("signOff");
-  if(on) on.onclick = () => doSignup("ja", on);
-  if(off) off.onclick = () => { if(confirm(`Für den Spieltag ${s.year} abmelden?`)) doSignup("nein", off); };
+    : `<button class="signup-btn" data-sign="ja" type="button">Anmelden für ${esc(s.year)}</button>
+       <span class="signup-note">${esc(day)}${until ? ` · Anmeldeschluss <b>${esc(MST.fmtDay(until))}</b>` : ""}</span>`);
+  document.querySelectorAll(".signup-slot [data-sign]").forEach(b => b.onclick = () => {
+    if(b.dataset.sign === "nein" && !confirm(`Für den Spieltag ${s.year} abmelden?`)) return;
+    doSignup(b.dataset.sign, b);
+  });
 }
+/* Wartet nicht auf den Server (MST.quick): die Anzeige wechselt sofort, gespeichert wird im Hintergrund. */
 async function doSignup(status, btn){
   const s = signupState, me = MST.user.id;
   btn.disabled = true;
@@ -291,10 +346,10 @@ async function doSignup(status, btn){
     if(!s.pid){
       // Mitglied hat noch keinen Spielnamen → Person anlegen (wie auf der Spieltag-Seite)
       const d = MST.directory[me] || {};
-      await db.collection("spieltagPersons").doc(me).set({ name:d.short || (d.name || "").split(" ")[0] || me, memberId:me });
+      await MST.quick(db.collection("spieltagPersons").doc(me).set({ name:d.short || (d.name || "").split(" ")[0] || me, memberId:me }));
       s.pid = me;
     }
-    await db.collection("spieltag").doc(s.year).collection("signups").doc(me).set({ pid:s.pid, status, at:Date.now() });
+    await MST.quick(db.collection("spieltag").doc(s.year).collection("signups").doc(me).set({ pid:s.pid, status, at:Date.now() }));
     MST.log("spieltag", `Spieltag ${s.year}: ${status === "ja" ? "angemeldet" : "abgemeldet"} (Startseite)`);
   }catch(e){
     console.error(e);

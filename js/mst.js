@@ -22,6 +22,37 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
+/* Seitenwechsel ohne Hänger. Firestore räumt seinen Gerätespeicher (IndexedDB) erst auf, WÄHREND die Seite
+   verschwindet (pagehide). Auf iPhone/Safari bleibt dieses Aufräumen manchmal mittendrin stehen – die nächste Seite
+   kann den Speicher dann nicht öffnen und zeigt «lade …», bis man die App neu startet (WebKit-Fehler 226547; die
+   Bibliothek umgeht ihn nur für iOS 14–16 und nicht für Apps auf dem Home-Bildschirm). Darum:
+   1. Auf WebKit kommt das Aufräumen beim Verschwinden gar nicht erst zum Zug (dieser Zuhörer steht vor dem von Firestore).
+   2. Vor jedem Wechsel auf eine andere Seite beenden wir Firestore selbst, solange die Seite noch lebt (leaveClean) –
+      die nächste Seite übernimmt den Speicher sofort.
+   3. Holt der Browser eine so verlassene Seite aus dem Zwischenspeicher zurück (Zurück-Wischen), lädt sie neu. */
+const WEBKIT = /AppleWebKit/.test(navigator.userAgent) && (!/Chrome|Chromium|Edg\/|Android/.test(navigator.userAgent) || /iPhone|iPad|iPod/.test(navigator.userAgent));
+let leftClean = null;
+function leaveClean(){
+  if(!leftClean){
+    const end = typeof db.terminate === "function" ? db.terminate().catch(() => {}) : Promise.resolve();
+    leftClean = Promise.race([end, new Promise(r => setTimeout(r, 1200))]);
+  }
+  return leftClean;
+}
+window.addEventListener("pagehide", e => { if(WEBKIT) e.stopImmediatePropagation(); }, true);
+window.addEventListener("pageshow", e => { if(e.persisted && leftClean) location.reload(); });
+document.addEventListener("click", e => {
+  if(e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const a = e.target.closest && e.target.closest("a[href]");
+  if(!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+  let url;
+  try{ url = new URL(a.href, location.href); }catch(err){ return; }
+  if(url.origin !== location.origin) return;
+  if(url.pathname === location.pathname && url.search === location.search) return;   // nur Sprungmarke
+  e.preventDefault();
+  leaveClean().then(() => { location.href = url.href; });
+});
+
 /* Offline (Funkloch am Hörnle): Firestore behält alles Gelesene auf dem Gerät und schickt Änderungen nach,
    sobald wieder Empfang da ist. Muss vor dem ersten Zugriff stehen; geht nicht (privates Fenster) = egal. */
 db.enablePersistence({ synchronizeTabs:true }).catch(e => console.warn("Offline-Speicher nicht verfügbar", e.code || e));
@@ -41,10 +72,15 @@ const MST = {
     return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
   },
 
+  async fetchDirectory(){
+    const snap = await db.collection("memberDirectory").get(), dir = {};
+    snap.forEach(d => { dir[d.id] = d.data(); });
+    return dir;
+  },
   async loadDirectory(){
-    const snap = await db.collection("memberDirectory").get();
-    this.directory = {};
-    snap.forEach(d => { this.directory[d.id] = d.data(); });
+    this.directory = await this.fetchDirectory();
+    const u = auth.currentUser;
+    if(u && this.cachedLogin(u.uid)) this.rememberLogin(u.uid);
   },
   nameOf(id){ return (this.directory[id] && this.directory[id].short) || id; },
 
@@ -92,12 +128,24 @@ const MST = {
   },
 
   /* Schreiben ohne auf den Server zu warten: Firestore zeigt die Änderung sofort an und schickt sie nach,
-     sobald wieder Empfang da ist. Ohne Netz käme das Versprechen erst dann zurück – die Seite bliebe hängen.
-     Lehnt der Server später ab (z. B. Anmeldeschluss vorbei), erscheint ein Hinweis. */
+     sobald wieder Empfang da ist. Wer auf die Antwort wartet, hat bei schwachem Netz einen Knopf, der hängt –
+     darum höchstens 0,4 s (reicht für eine sofortige Ablehnung). Lehnt der Server später ab (z. B.
+     Anmeldeschluss vorbei), erscheint ein Hinweis. */
   quick(p, ms){
     let late = false;
     p.catch(e => { if(late){ console.error(e); this.toast("Eine Änderung wurde nicht gespeichert (keine Berechtigung oder abgelaufen). Bitte nochmals prüfen.", "red", 9000); } });
-    return Promise.race([p, new Promise(r => setTimeout(() => { late = true; r(); }, ms || 2500))]);
+    return Promise.race([p, new Promise(r => setTimeout(() => { late = true; r(); }, ms || 400))]);
+  },
+  /* Lesen ohne auf den Server zu warten: liefert sofort, was vom letzten Besuch auf dem Gerät liegt (sonst die
+     Antwort vom Server). Der Server wird im Hintergrund gefragt; hat sich etwas geändert → onChange(neu).
+     Für alles, was eine Seite beim Öffnen braucht. Nicht für Lesen-dann-Schreiben (dort ref.get()). */
+  fast(ref, onChange){
+    const sig = s => JSON.stringify(s.docs ? s.docs.map(d => [d.id, d.data()]) : s.exists ? s.data() : null);
+    return ref.get({ source:"cache" }).then(c => {
+      if(c.docs && c.empty) return ref.get();   // leere Liste: noch nie geholt oder wirklich leer → Server fragen
+      ref.get().then(f => { if(onChange && sig(f) !== sig(c)) onChange(f); }).catch(() => {});
+      return c;
+    }, () => ref.get());
   },
   toast(text, kind, ms){
     let el = document.getElementById("mstToast");
@@ -109,24 +157,17 @@ const MST = {
     if(ms !== 0) this._toastT = setTimeout(() => { el.hidden = true; }, ms || 3500);
   },
 
+  /* Seite neu laden – zuerst Firestore sauber beenden (siehe leaveClean) */
+  reload(){ leaveClean().then(() => location.reload()); },
+
   /* Startet die Seite: zeigt bei Bedarf das Login und ruft danach onReady(user) auf. */
   start(onReady){
     this._onReady = onReady;
     auth.onAuthStateChanged(async (u) => {
       if(this._loggingIn) return; // memberLogin() führt selbst weiter
       try{
-        if(!u){ this.showLogin(); return; }
-        if(!u.isAnonymous){
-          await this.loadVorstand(u);
-          return this.ready();
-        }
-        const s = await db.collection("sessions").doc(u.uid).get();
-        if(!s.exists){ this.showLogin(); return; }
-        await this.loadDirectory();
-        const id = s.data().memberId;
-        const d = this.directory[id] || { name:id, short:id };
-        this.user = { id, name:d.name, short:d.short, admin:false };
-        this.ready();
+        if(await this.identify(u)) this.ready();
+        else this.showLogin();
       }catch(e){
         console.error(e);
         this.showLogin("Verbindung fehlgeschlagen – bitte nochmals versuchen.");
@@ -134,19 +175,63 @@ const MST = {
     });
   },
 
-  /* Vorstand (E-Mail-Login): Rolle aus roles/<e-mail>, ohne Eintrag = Admin (Jan). */
-  ROLE_LABEL: { admin:"Admin", kassier:"Kassier", aktuar:"Aktuar" },
-  async loadVorstand(u){
-    let role = "admin", id = this.ADMIN_MEMBER_ID;
-    try{
-      const r = await db.collection("roles").doc(String(u.email || "").toLowerCase()).get();
-      if(r.exists){ role = r.data().role || "admin"; id = r.data().memberId || id; }
-    }catch(e){ console.warn("Rolle", e); }
-    await this.loadDirectory();
-    const d = this.directory[id] || { name:"Vorstand", short:"Vorstand" };
-    this.user = { id, name:d.name, short:d.short, admin:role === "admin", role, vorstand:true,
-      kassier:role === "admin" || role === "kassier", aktuar:role === "admin" || role === "aktuar" };
+  /* Wer ist eingeloggt? Setzt MST.user/MST.directory und gibt den Nutzer zurück (null = niemand).
+     Beim ersten Mal vom Server (Sitzung bzw. Rolle + Mitgliederliste). Danach sofort vom Gerät – sonst wartet
+     jede Seite zwei Anfragen lang auf «lade …». Der Server wird im Hintergrund nachgefragt; ist jemand
+     ausgetreten oder hat die Rolle gewechselt, lädt die Seite neu. Geschützt sind die Daten ohnehin durch
+     die Firestore-Regeln. */
+  USER_CACHE: "mst-user-v1",
+  cachedLogin(uid){
+    try{ const c = JSON.parse(localStorage.getItem(this.USER_CACHE) || "null"); return c && c.uid === uid && c.user && c.directory ? c : null; }catch(e){ return null; }
+  },
+  rememberLogin(uid){
+    try{ localStorage.setItem(this.USER_CACHE, JSON.stringify({ uid, user:this.user, directory:this.directory })); }catch(e){}
+  },
+  forgetLogin(){ try{ localStorage.removeItem(this.USER_CACHE); }catch(e){} },
+  async identify(u){
+    if(!u){ this.forgetLogin(); this.user = null; return null; }
+    const c = this.cachedLogin(u.uid);
+    if(c){
+      this.user = c.user; this.directory = c.directory;
+      if(!this._checked){
+        this._checked = true;   // einmal pro Seite
+        this.lookup(u, true).then(r => {
+          if(JSON.stringify(r.user) !== JSON.stringify(c.user)){
+            if(r.user){ this.user = r.user; this.directory = r.directory; this.rememberLogin(u.uid); } else this.forgetLogin();
+            this.reload();
+            return;
+          }
+          this.directory = r.directory; this.rememberLogin(u.uid);
+        }).catch(e => console.warn("Login prüfen", e));
+      }
+      return this.user;
+    }
+    const r = await this.lookup(u);
+    this.user = r.user;
+    if(r.user){ this.directory = r.directory; this.rememberLogin(u.uid); }
     return this.user;
+  },
+  /* Vorstand (E-Mail-Login): Rolle aus roles/<e-mail>, ohne Eintrag = Admin (Jan).
+     Mitglied (anonymer Login): Sitzung sessions/<uid>. strict = Fehler weitergeben (Prüfung im Hintergrund). */
+  ROLE_LABEL: { admin:"Admin", kassier:"Kassier", aktuar:"Aktuar" },
+  async lookup(u, strict){
+    if(!u.isAnonymous){
+      const [r, dir] = await Promise.all([
+        db.collection("roles").doc(String(u.email || "").toLowerCase()).get().catch(e => { if(strict) throw e; console.warn("Rolle", e); return null; }),
+        this.fetchDirectory()
+      ]);
+      let role = "admin", id = this.ADMIN_MEMBER_ID;
+      if(r && r.exists){ role = r.data().role || "admin"; id = r.data().memberId || id; }
+      const d = dir[id] || { name:"Vorstand", short:"Vorstand" };
+      return { directory:dir, user:{ id, name:d.name, short:d.short, admin:role === "admin", role, vorstand:true,
+        kassier:role === "admin" || role === "kassier", aktuar:role === "admin" || role === "aktuar" } };
+    }
+    // Mitgliederliste gleichzeitig holen (ohne Sitzung verweigern die Regeln sie – dann ist es egal)
+    const [s, dir0] = await Promise.all([db.collection("sessions").doc(u.uid).get(), this.fetchDirectory().catch(() => null)]);
+    if(!s.exists) return { directory:{}, user:null };
+    const dir = dir0 || await this.fetchDirectory();
+    const id = s.data().memberId, d = dir[id] || { name:id, short:id };
+    return { directory:dir, user:{ id, name:d.name, short:d.short, admin:false } };
   },
 
   ready(){
@@ -166,9 +251,10 @@ const MST = {
 
   async logout(){
     const u = auth.currentUser;
-    try{ if(u && u.isAnonymous) await db.collection("sessions").doc(u.uid).delete(); }catch(e){}
+    this.forgetLogin();
+    try{ if(u && u.isAnonymous) await this.quick(db.collection("sessions").doc(u.uid).delete(), 1500); }catch(e){}
     await auth.signOut();
-    location.reload();
+    this.reload();
   },
 
   showLogin(msg, adminMode){
@@ -242,6 +328,7 @@ const MST = {
     await this.loadDirectory();
     const d = this.directory[m.data().id] || { name:m.data().id, short:m.data().id };
     this.user = { id:m.data().id, name:d.name, short:d.short, admin:false };
+    this.rememberLogin(uid);
     this.ready();
   },
 
@@ -262,6 +349,15 @@ document.addEventListener("DOMContentLoaded", () => {
   document.body.appendChild(f);
   MST.watchOnline();
 });
+
+/* Bleibt «lade …» stehen (kein Empfang beim allerersten Besuch, Speicher des Browsers klemmt), nach 9 s einen
+   Ausweg zeigen statt endlos warten zu lassen. */
+window.addEventListener("load", () => setTimeout(() => {
+  document.querySelectorAll("#gate:not([hidden]) > .loading, #app > .loading").forEach(l => {
+    if(!/^lade/.test(l.textContent.trim())) return;
+    l.innerHTML = 'Das dauert länger als sonst …<br><br><button class="btn-primary" type="button" onclick="MST.reload()">Neu laden</button>';
+  });
+}, 9000));
 
 /* Offline-Hinweis: ohne Netz bleibt alles bedienbar, Änderungen gehen nach, sobald wieder Empfang da ist. */
 MST.watchOnline = function(){

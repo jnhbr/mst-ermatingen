@@ -6,7 +6,8 @@
    Firestore selbst (enablePersistence in js/mst.js) – hier geht es nur
    darum, dass die Seite im Funkloch überhaupt öffnet.
 
-   - Seiten (HTML): zuerst Netz (max. 4 s), sonst die gespeicherte Fassung.
+   - Seiten (HTML): zuerst Netz (max. 1,2 s – sonst fühlt sich jeder Tipp auf eine Kachel zäh an), sonst die
+     gespeicherte Fassung; die frische wird im Hintergrund fürs nächste Mal abgelegt.
    - Eigene Dateien mit ?v=…: aus dem Speicher, sonst Netz. Alte ?v= fliegen raus.
    - Bibliotheken/Schriften (gstatic, cdnjs, Google Fonts): aus dem Speicher.
    - Alles andere (Firestore, Apps Script, Drive) läuft am Speicher vorbei.
@@ -20,6 +21,7 @@ const PAGES = ["./", "spieltag/", "kalender/", "ich/", "padel/", "afterworkbar/"
 const STATIC = ["manifest.json", "assets/logo.png", "assets/icon-192.png", "assets/apple-touch-icon.png"];
 const LIBS = /^https:\/\/(www\.gstatic\.com\/firebasejs\/|cdnjs\.cloudflare\.com\/|fonts\.googleapis\.com\/|fonts\.gstatic\.com\/)/;
 const WARM_EVERY = 6 * 3600 * 1000;
+const PAGE_WAIT = 1200;   // so lange darf das Netz für eine Seite brauchen, bevor die gespeicherte Fassung kommt
 const scopeUrl = p => new URL(p, self.registration.scope).href;
 
 self.addEventListener("install", e => {
@@ -47,16 +49,15 @@ self.addEventListener("fetch", e => {
 /* ---------- Seiten ---------- */
 async function page(req, e){
   const cache = await caches.open(CACHE), key = pageKey(req.url);
-  const net = fetch(req).then(res => {
-    if(res.ok){
-      const copy = res.clone();
-      e.waitUntil(cache.put(key, copy.clone())
-        .then(() => copy.text()).then(html => cacheAssets(cache, html, key)).then(() => maybeWarm()).catch(() => {}));
-    }
-    return res;
-  });
+  const net = fetch(req);
+  // frische Fassung ablegen – auch wenn die Antwort unten schon aus dem Speicher kam
+  e.waitUntil(net.then(res => {
+    if(!res.ok) return;
+    const copy = res.clone();
+    return cache.put(key, copy.clone()).then(() => copy.text()).then(html => cacheAssets(cache, html, key)).then(() => maybeWarm());
+  }).catch(() => {}));
   try{
-    return await timeout(net, 4000);
+    return await timeout(net, PAGE_WAIT);
   }catch(err){
     // langsames Netz oder keines: gespeicherte Fassung; gibt es keine, doch noch aufs Netz warten
     const hit = await cache.match(key) || await cache.match(req, { ignoreSearch:true });

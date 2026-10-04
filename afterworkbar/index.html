@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/mst.css?v=202610041800">
+<link rel="stylesheet" href="../css/mst.css?v=202610042100">
 <style>
   /* ---------- Einsatzplan ---------- */
   .blocks{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr)); gap:12px;}
@@ -75,7 +75,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="../js/mst.js?v=202610041800" data-base="../"></script>
+<script src="../js/mst.js?v=202610042100" data-base="../"></script>
 <script>
 /* ===================== DATEN =====================
    config/awb                 { currentYear }
@@ -98,14 +98,26 @@ let currentTab = "einsatz";
 let saveStatus = "idle";
 let menuDraft = null;
 
-MST.start(async (user) => {
-  me = user;
-  const [conf, ys] = await Promise.all([db.collection("config").doc("awb").get(), db.collection("awb").get()]);
+MST.start(user => { me = user; boot(); });
+/* Jahre sofort vom Gerät (MST.fast), der Server wird im Hintergrund gefragt – ändert sich etwas, baut boot() neu auf */
+let bootSeq = 0;
+async function boot(){
+  const seq = ++bootSeq, again = () => { if(seq === bootSeq) boot(); };
+  let conf, ys;
+  try{
+    [conf, ys] = await Promise.all([MST.fast(db.collection("config").doc("awb"), again), MST.fast(db.collection("awb"), again)]);
+  }catch(e){
+    console.error(e);
+    document.getElementById("app").innerHTML = '<div class="loading">Keine Verbindung – <button class="link-btn" type="button" onclick="MST.reload()">nochmals versuchen</button></div>';
+    return;
+  }
+  if(seq !== bootSeq) return;
+  const keep = YEAR && YEAR !== CURRENT_YEAR ? YEAR : null;   // beim Neuaufbau das gewählte ältere Jahr behalten
   CURRENT_YEAR = conf.exists ? conf.data().currentYear : null;
   years = ys.docs.map(d => d.id).sort().reverse();
-  const wanted = new URLSearchParams(location.search).get("jahr");
+  const wanted = keep || new URLSearchParams(location.search).get("jahr");
   openYear(years.includes(wanted) ? wanted : (CURRENT_YEAR || years[0]));
-});
+}
 
 const isArchive = () => YEAR !== CURRENT_YEAR;
 const canEdit = () => me.admin || !isArchive();

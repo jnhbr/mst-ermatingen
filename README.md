@@ -13,7 +13,7 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
   (wie «Neues Jahr anlegen»), Padel-Saison (Termine +364 Tage, Fixe ohne Ausgetretene) – und macht sie aktuell.
   Zieljahr = letzte schon stattgefundene GV + 1 (änderbar). Bestehendes bleibt unangetastet.
 - `sw.js` – Service Worker (nur https): hält Seiten, Stile, Skripte, Firebase-Bibliothek und Schriften auf dem Gerät,
-  damit die Seite im Funkloch öffnet (Seiten: zuerst Netz, nach 4 s die gespeicherte Fassung). Holt alle 6 Stunden im
+  damit die Seite im Funkloch öffnet (Seiten: zuerst Netz, nach 1,2 s die gespeicherte Fassung). Holt alle 6 Stunden im
   Hintergrund alle Bereiche, alte `?v=` fliegen raus. Neue Seite → in `PAGES` eintragen.
 - `gv/` + `js/gv-app.js` – GV: Traktanden (Platzhalter wie {vermoegen}, Vorschläge der Mitglieder), Mitglieder (Mutationen,
   Vorstand), Protokoll des Aktuars, Jahresrückblick; druckt Übersicht (inkl. Finanzseiten) und Protokoll im Stil der
@@ -42,7 +42,9 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
   Quelle der Wahrheit ist der Google Kalender «MST» – kein Firestore. Die Seite liest/schreibt über die
   Apps-Script-Web-App `apps-script/kalender/` (Einrichtung dort im README, URL in `js/kalender.js` → `API`).
   Eintragen/ändern/löschen nur Vorstand (Firebase-Token wird im Skript geprüft); Serientermine nur in Google.
-  Abo-Feed = `<API>?format=ics`. Die Startseite zeigt die nächsten 3 Termine.
+  Abo-Feed = `<API>?format=ics`. Die Startseite zeigt die nächsten 3 Termine als Karten mit Datum und den
+  Knöpfen «Bin dabei / Vielleicht / Kann nicht» direkt darauf (ein Tipp, nochmals tippen = zurückziehen; beim
+  Spieltag-Termin steht dort der Anmelde-Knopf, bei Padel der Link zur Verfügbarkeit).
   **Zu-/Absagen**: eingeloggte Mitglieder tippen im Termin «Bin dabei / Vielleicht / Kann nicht» (+ Bemerkung) und sehen,
   wer kommt. Firestore `rsvp/<termin>` = { title, day, <memberId>:{ s, at, n } }, jedes Mitglied ändert nur sein Feld.
   Nicht bei Spieltag (eigene Anmeldung) und Padel (eigene Verfügbarkeit). Login auf der Kalender-Seite freiwillig
@@ -52,7 +54,7 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
   Ordner verwaltet der Vorstand.
 - `js/mst.js` – Firebase-Init (Projekt `minispieltag`), Login und die Instagram-Fusszeile (@minispieltag) auf allen Seiten;
   dazu **Offline**: `enablePersistence` (Firestore behält Gelesenes und schickt Änderungen nach), `MST.quick(promise)`
-  (wartet höchstens 2,5 s auf den Server – sonst bliebe die Seite ohne Netz hängen; spätere Ablehnung → Hinweis oben),
+  (wartet höchstens 0,4 s auf den Server – sonst hängt der Knopf bei schwachem Netz; spätere Ablehnung → Hinweis oben),
   `MST.toast()`, Offline-Balken unten und die Registrierung von `sw.js`
 - `css/mst.css` – gemeinsames Design (Schwarz/Gelb aus dem Wappen)
 - `firestore.rules` – Regeln für das ganze Firebase-Projekt (auch die Spieltag-Seite!),
@@ -69,6 +71,24 @@ gehen an den Server, sobald wieder Empfang da ist (Balken unten: «Offline …»
 eine nachgeschickte Änderung ab (z. B. Rechte), erscheint oben ein roter Hinweis. Tipp: am Morgen vom Spieltag alle
 Helfer die Spieltag-Seite einmal mit Netz öffnen lassen. Lokal testen: `private/test-harness.html?seite=ich|kalender|index|spieltag&als=m14|admin|gast`
 (erfundene Daten, kein Firebase).
+
+## Tempo (seit 4.10.2026)
+Nichts wartet auf den Server, was schon auf dem Gerät liegt:
+- **Login**: `MST.identify(user)` merkt sich Nutzer + Mitgliederliste in `localStorage` (`mst-user-v1`). Ab dem zweiten
+  Besuch startet jede Seite sofort; Sitzung/Rolle werden im Hintergrund geprüft (geändert → Seite lädt neu, Sitzung weg →
+  Login). Auch Spieltag- und Kalender-Seite nutzen `identify`. Geschützt sind die Daten durch die Firestore-Regeln.
+- **Lesen beim Öffnen**: `MST.fast(ref, onChange)` statt `ref.get()` – liefert sofort den Stand vom letzten Besuch und fragt
+  den Server im Hintergrund; bei Abweichung ruft es `onChange` (Padel/Afterworkbar: `boot()`, Mein MST: `block()`).
+  Nicht für Lesen-dann-Schreiben (Jahreswechsel, Austritt …) – dort bleibt `ref.get()`.
+- **Schreiben**: `MST.quick()` bzw. `KAL.toggleRsvp()` – die Anzeige wechselt über die `onSnapshot`-Zuhörer sofort.
+  Kein `await ref.set()` hinter einem Knopf, der dabei gesperrt ist.
+- `KAL.load()` teilt sich eine laufende Anfrage (die Apps-Script-Brücke braucht 1–3 s).
+- Bleibt «lade …» länger als 9 s stehen, erscheint ein Knopf «Neu laden».
+- **Seitenwechsel** (`leaveClean` oben in `js/mst.js`): Firestore räumt seinen Gerätespeicher sonst erst beim Verschwinden
+  der Seite auf; auf iPhone/Safari blieb das hängen und die nächste Seite zeigte «lade …» bis zum Neustart der App
+  (jede Kachel, auch zurück). Darum beendet ein Klick auf einen internen Link Firestore zuerst sauber und wechselt dann;
+  auf WebKit ist das Aufräumen beim Verschwinden abgeschaltet; kommt eine so verlassene Seite aus dem
+  Zwischenspeicher zurück, lädt sie neu. Seite neu laden immer mit `MST.reload()`, nicht `location.reload()`.
 
 ## Login & Rollen
 - Mitglieder: Vereinsnummer + Vorname (erstes Wort, Gross/Klein egal). Firestore `members/<sha256>` → Sitzung `sessions/<uid>`.

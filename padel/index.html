@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/mst.css?v=202610041800">
+<link rel="stylesheet" href="../css/mst.css?v=202610042100">
 <style>
   .legend{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; font-size:12px; color:var(--muted);}
   .legend-item{display:flex; align-items:center; gap:6px;}
@@ -142,7 +142,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../js/mst.js?v=202610041800" data-base="../"></script>
+<script src="../js/mst.js?v=202610042100" data-base="../"></script>
 <script>
 /* ===================== SAISON =====================
    Jede Saison ist ein Dokument padel/<id> mit ihrer Konfiguration
@@ -206,16 +206,28 @@ let currentTab = "verfuegbarkeit";
 let saveStatus = "idle";
 let me = null; // MST.user
 
-MST.start(async (user) => {
-  me = user;
-  const [conf, seasons] = await Promise.all([db.collection("config").doc("padel").get(), db.collection("padel").get()]);
+MST.start(user => { me = user; boot(); });
+/* Saisons sofort vom Gerät (MST.fast), der Server wird im Hintergrund gefragt – ändert sich etwas, baut boot() neu auf */
+let bootSeq = 0;
+async function boot(){
+  const seq = ++bootSeq, again = () => { if(seq === bootSeq) boot(); };
+  let conf, seasons;
+  try{
+    [conf, seasons] = await Promise.all([MST.fast(db.collection("config").doc("padel"), again), MST.fast(db.collection("padel"), again)]);
+  }catch(e){
+    console.error(e);
+    document.getElementById("app").innerHTML = '<div class="loading">Keine Verbindung – <button class="link-btn" type="button" onclick="MST.reload()">nochmals versuchen</button></div>';
+    return;
+  }
+  if(seq !== bootSeq) return;
+  const keep = SEASON && SEASON !== CURRENT_SEASON ? SEASON : null;   // beim Neuaufbau die gewählte ältere Saison behalten
   CURRENT_SEASON = conf.exists ? conf.data().currentSeason : null;
   seasonsList = [];
   seasons.forEach(d => seasonsList.push({ id:d.id, cfg:d.data() }));
   seasonsList.sort((a,b) => b.id.localeCompare(a.id));
-  const wanted = new URLSearchParams(location.search).get("saison");
+  const wanted = keep || new URLSearchParams(location.search).get("saison");
   openSeason(seasonsList.find(s => s.id === wanted) ? wanted : (CURRENT_SEASON || (seasonsList[0] && seasonsList[0].id)));
-});
+}
 
 function openSeason(id){
   unsub.forEach(f => f()); unsub = [];

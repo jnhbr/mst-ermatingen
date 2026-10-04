@@ -31,12 +31,21 @@ const KAL = {
   remember(events){
     try{ localStorage.setItem(this.CACHE, JSON.stringify({ events, at:Date.now() })); }catch(e){}
   },
-  async load(fresh){
-    const r = await fetch(this.api() + (fresh ? "?fresh=1" : ""), { cache:"no-store" });
-    const d = await r.json();
-    if(!d.ok) throw new Error(d.error || "Kalender nicht erreichbar");
-    this.remember(d.events);
-    return d.events;
+  /* Die Brücke braucht 1–3 s – fragen mehrere Stellen der Seite gleichzeitig, teilen sie sich eine Anfrage. */
+  _loading: null,
+  load(fresh){
+    if(!fresh && this._loading) return this._loading;
+    const p = (async () => {
+      const r = await fetch(this.api() + (fresh ? "?fresh=1" : ""), { cache:"no-store" });
+      const d = await r.json();
+      if(!d.ok) throw new Error(d.error || "Kalender nicht erreichbar");
+      this.remember(d.events);
+      return d.events;
+    })();
+    this._loading = p;
+    const done = () => { if(this._loading === p) this._loading = null; };
+    p.then(done, done);
+    return p;
   },
   /* action = "save" | "delete"; nur Vorstand. Antwort enthält die frische Terminliste. */
   async write(action, event, byName){
@@ -150,6 +159,15 @@ const KAL = {
     const me = mine ? `<span class="rsvp-badge ${mine.s}">${this.RSVP[mine.s].icon} ${this.RSVP[mine.s].short}</span>`
       : memberId ? '<span class="rsvp-badge open">zusagen?</span>' : "";
     return me + (n ? `<span class="rsvp-count">${n} dabei</span>` : "");
+  },
+  /* Antippen = zusagen; nochmals dieselbe Antwort antippen = zurückziehen. Die Bemerkung bleibt. Wartet nicht auf
+     den Server (MST.quick) – die Anzeige wechselt sofort über watchRsvps. */
+  toggleRsvp(ev, memberId, s, where){
+    const mine = this.myRsvp(ev, memberId), off = !!(mine && mine.s === s);
+    const p = this.setRsvp(ev, memberId, off ? null : s, mine && mine.n)
+      .catch(e => { console.error(e); MST.toast("Hat nicht geklappt – bitte nochmals versuchen.", "red", 6000); });
+    MST.log("kalender", `${off ? "Antwort zurückgezogen" : this.RSVP[s].label}: ${ev.title} (${this.when(ev, true)})${where ? " – " + where : ""}`);
+    return p;
   },
   /* Knöpfe «Bin dabei / Vielleicht / Kann nicht» (data-rsvp="<s>") */
   rsvpButtons(ev, memberId){

@@ -49,18 +49,16 @@ auth.onAuthStateChanged(u => refreshViewer(u));
 async function refreshViewer(u){
   if(!D.test){
     let v = { admin:false, memberId:null };
-    if(u && !u.isAnonymous){ const usr = await MST.loadVorstand(u); v = { admin:usr.admin, memberId:usr.id, vorstand:true }; }
-    else if(u){
-      try{ const s = await db.collection("sessions").doc(u.uid).get(); if(s.exists) v.memberId = s.data().memberId; }catch(e){}
-    }
-    viewer = v;
-  }
-  if(viewer.memberId && !viewer.vorstand){
     try{
-      await MST.loadDirectory();
-      const d = MST.directory[viewer.memberId] || {};
-      MST.user = { id:viewer.memberId, name:d.name || viewer.memberId, short:d.short || "", admin:viewer.admin };
-    }catch(e){ MST.user = { id:viewer.memberId, name:viewer.memberId, short:"", admin:viewer.admin }; }
+      const usr = await MST.identify(u);   // ab dem zweiten Besuch sofort vom Gerät
+      if(usr) v = { admin:usr.admin, memberId:usr.id, vorstand:!!usr.vorstand };
+    }catch(e){ console.warn("Login", e); }
+    viewer = v;
+  } else if(viewer.memberId && !MST.user){
+    // Testmodus: Name aus der Mitgliederliste (falls lesbar)
+    try{ await MST.loadDirectory(); }catch(e){}
+    const d = MST.directory[viewer.memberId] || {};
+    MST.user = { id:viewer.memberId, name:d.name || viewer.memberId, short:d.short || "", admin:viewer.admin };
   }
   const gate = document.getElementById("gate");
   if(viewer.memberId && !gate.hidden){ gate.hidden = true; gate.innerHTML = ""; }
@@ -74,11 +72,11 @@ D.watchDoc("spieltagMeta/settings", s => {
 });
 D.watchCollection("spieltagPersons", docs => { ST.persons = {}; docs.forEach(d => ST.persons[d.id] = d.data); render(); });
 D.watchDoc("spieltagMeta/catalog", c => { catalog = (c && c.items) || E.DEFAULT_CATALOG; });
-D.getCollection("spieltagHistory").then(docs => {
+D.watchCollection("spieltagHistory", docs => {   // sofort vom Gerät, danach live
   HIST = docs.map(d => d.data).sort((a, b) => a.year - b.year);
   strength = E.strengthFromHistory(HIST);
   render();
-}).catch(e => console.warn("Historie", e));
+});
 
 /* Datum aus dem Google Kalender (Termin «Minispieltag <jahr>»), falls dort eingetragen */
 let calEvents = null;

@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/mst.css?v=202610041800">
+<link rel="stylesheet" href="../css/mst.css?v=202610042100">
 <style>
   .muted{color:var(--muted);}
   .court-line{position:relative; height:1px; background:linear-gradient(90deg, transparent, var(--line-strong) 12%, var(--line-strong) 88%, transparent); margin:0 4px 22px;}
@@ -56,9 +56,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../js/mst.js?v=202610041800" data-base="../"></script>
-<script src="../js/kalender.js?v=202610041800"></script>
-<script src="../js/spieltag-stats.js?v=202610041800"></script>
+<script src="../js/mst.js?v=202610042100" data-base="../"></script>
+<script src="../js/kalender.js?v=202610042100"></script>
+<script src="../js/spieltag-stats.js?v=202610042100"></script>
 <script>
 /* ===================== Mein MST =====================
    Alles Persönliche auf einer Seite – liest nur, was die anderen Bereiche schon speichern:
@@ -75,8 +75,16 @@ const CHF = n => "CHF " + (Math.round(n * 100) / 100).toLocaleString("de-CH", { 
 MST.start(user => {
   me = user;
   draw();
-  loadEvents(); loadSpieltag(); loadPadel(); loadAwb(); loadFeeAndGv();
+  loadEvents();
+  [loadSpieltag, loadPadel, loadAwb, loadFeeAndGv].forEach(block);
 });
+/* Jeder Block liest über G(ref) = MST.fast: sofort, was vom letzten Besuch auf dem Gerät liegt. Der Server wird im
+   Hintergrund gefragt – meldet er etwas anderes, lädt der Block nochmals (dann stimmt auch der Gerätespeicher). */
+function block(fn){
+  let seq = 0;
+  const run = () => { const my = ++seq; return fn(ref => MST.fast(ref, () => { if(my === seq) run(); })); };
+  run();
+}
 
 /* ---------- Laden ---------- */
 async function loadEvents(){
@@ -88,12 +96,12 @@ async function loadEvents(){
   draw();
 }
 
-async function loadSpieltag(){
+async function loadSpieltag(G){
   try{
     const [set, persons, hist] = await Promise.all([
-      db.collection("spieltagMeta").doc("settings").get(),
-      db.collection("spieltagPersons").get(),
-      db.collection("spieltagHistory").get()
+      G(db.collection("spieltagMeta").doc("settings")),
+      G(db.collection("spieltagPersons")),
+      G(db.collection("spieltagHistory"))
     ]);
     const year = set.exists ? set.data().currentYear : null;
     const names = {};
@@ -102,7 +110,7 @@ async function loadSpieltag(){
     const history = hist.docs.map(d => d.data()).sort((a, b) => a.year - b.year);
     let yd = null, signup = null;
     if(year){
-      const [y, s] = await Promise.all([db.collection("spieltag").doc(String(year)).get(), db.collection("spieltag").doc(String(year)).collection("signups").doc(me.id).get()]);
+      const [y, s] = await Promise.all([G(db.collection("spieltag").doc(String(year))), G(db.collection("spieltag").doc(String(year)).collection("signups").doc(me.id))]);
       yd = y.exists ? y.data() : null; signup = s.exists ? s.data() : null;
     }
     st.spieltag = { year, yd, signup, pid, history, names };
@@ -110,29 +118,29 @@ async function loadSpieltag(){
   draw();
 }
 
-async function loadPadel(){
+async function loadPadel(G){
   try{
-    const conf = await db.collection("config").doc("padel").get();
+    const conf = await G(db.collection("config").doc("padel"));
     const season = conf.exists ? conf.data().currentSeason : null;
     if(!season){ st.padel = { none:true }; draw(); return; }
-    const cfg = (await db.collection("padel").doc(season).get()).data() || {};
+    const cfg = (await G(db.collection("padel").doc(season))).data() || {};
     // nächster Donnerstag der Saison (gleich gerechnet wie auf der Padel-Seite)
     const dates = [], d = new Date(cfg.start + "T00:00:00Z"), last = new Date(cfg.end + "T00:00:00Z");
     while(cfg.start && d <= last){ dates.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 7); }
     const next = dates.find(x => x >= todayISO() && !(cfg.venueCancelled || {})[x]) || null;
-    const day = next ? ((await db.collection("padel").doc(season).collection("days").doc(next).get()).data() || {}) : {};
+    const day = next ? ((await G(db.collection("padel").doc(season).collection("days").doc(next))).data() || {}) : {};
     const fixed = (cfg.fixed || []).some(f => f.id === me.id);
     st.padel = { season, cfg, next, day, fixed, left:dates.filter(x => x >= todayISO()).length };
   }catch(e){ console.warn("Padel", e); st.padel = { error:true }; }
   draw();
 }
 
-async function loadAwb(){
+async function loadAwb(G){
   try{
-    const conf = await db.collection("config").doc("awb").get();
+    const conf = await G(db.collection("config").doc("awb"));
     const year = conf.exists ? conf.data().currentYear : null;
     if(!year){ st.awb = { none:true }; draw(); return; }
-    const [info, shifts] = await Promise.all([db.collection("awb").doc(year).get(), db.collection("awb").doc(year).collection("shifts").get()]);
+    const [info, shifts] = await Promise.all([G(db.collection("awb").doc(year)), G(db.collection("awb").doc(year).collection("shifts"))]);
     const all = shifts.docs.map(x => x.data()).sort((a, b) => (a.blockOrder - b.blockOrder) || (a.order - b.order));
     st.awb = { year, info:info.data() || {}, mine:all.filter(s => s.assignee === me.id), free:all.filter(s => !s.assignee).length };
   }catch(e){ console.warn("Afterworkbar", e); st.awb = { error:true }; }
@@ -141,21 +149,21 @@ async function loadAwb(){
 
 /* Jahresbeitrag: gleiche Rechnung wie die Finanzen-Seite (js/gv-app.js → feeOf) –
    voller Beitrag minus Rabatt pro Einsatz an der Afterworkbar (Schicht/Sonderjob, Auf-/Abbau), Vorstand gratis. */
-async function loadFeeAndGv(){
+async function loadFeeAndGv(G){
   try{
-    const [gvs, vConf] = await Promise.all([db.collection("gv").get(), db.collection("config").doc("verein").get()]);
+    const [gvs, vConf] = await Promise.all([G(db.collection("gv")), G(db.collection("config").doc("verein"))]);
     const years = gvs.docs.filter(d => /^\d{4}$/.test(d.id)).map(d => ({ y:d.id, d:d.data() })).sort((a, b) => b.y.localeCompare(a.y));
     const v = Object.assign({ vorstand:{ praesident:"m10", aktuar:"m5", kassier:"m19" }, fee:100, discount:30, twint:"" }, vConf.exists ? vConf.data() : {});
     // GV: nächste bzw. letzte GV und meine Vorschläge dazu
     const latest = years[0];
     if(latest){
-      const ant = await db.collection("gv").doc(latest.y).collection("antraege").where("by", "==", me.id).get();
+      const ant = await G(db.collection("gv").doc(latest.y).collection("antraege").where("by", "==", me.id));
       st.gv = { year:latest.y, gv:latest.d, mine:ant.docs.map(x => x.data()) };
     } else st.gv = { none:true };
     // Beitrag: jüngstes Jahr mit Eintrag, sonst das Jahr der letzten schon stattgefundenen GV
     let pick = null;
     for(const g of years.slice(0, 2)){
-      const f = await db.collection("finance").doc(g.y).collection("fees").doc(me.id).get();
+      const f = await G(db.collection("finance").doc(g.y).collection("fees").doc(me.id));
       if(f.exists){ pick = { y:g.y, gv:g.d, f:f.data() }; break; }
     }
     if(!pick){ const g = years.find(x => x.d.date && x.d.date <= todayISO()); if(g) pick = { y:g.y, gv:g.d, f:{} }; }
@@ -169,7 +177,7 @@ async function loadFeeAndGv(){
     else {
       let awb = f.awb, aufbau = f.aufbau;
       if(awb == null || aufbau == null){
-        const sh = (await db.collection("awb").doc(pick.y).collection("shifts").where("assignee", "==", me.id).get()).docs.map(x => x.data());
+        const sh = (await G(db.collection("awb").doc(pick.y).collection("shifts").where("assignee", "==", me.id))).docs.map(x => x.data());
         if(awb == null) awb = sh.some(s => s.kind === "schicht" || s.kind === "sonder");
         if(aufbau == null) aufbau = sh.some(s => s.kind === "aufbau");
       }
@@ -355,16 +363,10 @@ function cardGv(){
 }
 
 function bind(){
-  document.querySelectorAll("[data-rsvp][data-key]").forEach(b => b.onclick = async () => {
+  // speichert sofort (nochmals antippen = Antwort zurückziehen); die Anzeige wechselt über watchRsvps
+  document.querySelectorAll("[data-rsvp][data-key]").forEach(b => b.onclick = () => {
     const e = (st.events || []).find(x => x.key === b.dataset.key);
-    if(!e) return;
-    const mine = KAL.myRsvp(e, me.id), s = b.dataset.rsvp;
-    b.disabled = true;
-    try{
-      await KAL.setRsvp(e, me.id, mine && mine.s === s ? null : s, mine && mine.n);
-      MST.log("kalender", `${mine && mine.s === s ? "Antwort zurückgezogen" : KAL.RSVP[s].label}: ${e.title} (${KAL.when(e, true)}) – Mein MST`);
-    }catch(err){ console.error(err); alert("Hat nicht geklappt – bitte nochmals versuchen."); }
-    draw();
+    if(e) KAL.toggleRsvp(e, me.id, b.dataset.rsvp, "Mein MST");
   });
 }
 </script>

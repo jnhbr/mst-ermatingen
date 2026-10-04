@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/mst.css?v=202610041800">
+<link rel="stylesheet" href="../css/mst.css?v=202610042100">
 <style>
   .muted{color:var(--muted);}
   .notice{border:1px solid var(--yellow); background:var(--yellow-soft); border-radius:var(--radius-sm); padding:10px 12px; font-size:13px; margin:0 4px 14px;}
@@ -118,8 +118,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../js/mst.js?v=202610041800" data-base="../"></script>
-<script src="../js/kalender.js?v=202610041800"></script>
+<script src="../js/mst.js?v=202610042100" data-base="../"></script>
+<script src="../js/kalender.js?v=202610042100"></script>
 <script>
 /* ---------- Zustand ---------- */
 let events = [], loadedAt = null, syncState = "busy", syncError = "";
@@ -155,19 +155,11 @@ async function refreshViewer(u){
   if(KAL.testVorstand()){
     v = { vorstand:true, name:"Test", role:"admin", memberId:"m10" };
     MST.user = { id:"m10", name:"Test" }; MST.log = () => {};
-  } else if(u && !u.isAnonymous){
-    try{ const usr = await MST.loadVorstand(u); v = { vorstand:true, name:usr.name, role:usr.role, memberId:usr.id }; }catch(e){ console.warn(e); }
   } else if(u){
-    // Mitglied (Nummer + Vorname): darf zu- und absagen
+    // Vorstand (E-Mail) trägt ein, Mitglied (Nummer + Vorname) sagt zu oder ab
     try{
-      const s = await db.collection("sessions").doc(u.uid).get();
-      if(s.exists){
-        const id = s.data().memberId;
-        await MST.loadDirectory();
-        const d = MST.directory[id] || { name:id, short:id };
-        MST.user = { id, name:d.name, short:d.short, admin:false };
-        v = { vorstand:false, name:d.name, memberId:id };
-      }
+      const usr = await MST.identify(u);   // ab dem zweiten Besuch sofort vom Gerät
+      if(usr) v = { vorstand:!!usr.vorstand, name:usr.name, role:usr.role, memberId:usr.id };
     }catch(e){ console.warn(e); }
   }
   if(seq !== viewerSeq) return;

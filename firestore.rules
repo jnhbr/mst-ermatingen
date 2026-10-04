@@ -105,11 +105,22 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['matches', 'scores', 'teamNames']);
     }
     // Selbst-Anmeldung: signups/<memberId> = { pid, status:"ja"|"nein", at }, nur solange offen
+    // (signupOpen) und bis zum Anmeldeschluss spieltag/<jahr>.signupUntil = "JJJJ-MM-TT" (der Tag zählt noch,
+    // Schluss um Mitternacht Schweizer Sommerzeit = 22:00 UTC).
+    function signupDeadline(iso) {
+      let p = iso.split('-');
+      return timestamp.date(int(p[0]), int(p[1]), int(p[2])) + duration.value(22, 'h');
+    }
+    function signupIsOpen(year) {
+      let y = get(/databases/$(database)/documents/spieltag/$(year)).data;
+      return y.get('signupOpen', false) == true
+        && (y.get('signupUntil', null) == null || request.time < signupDeadline(y.signupUntil));
+    }
     match /spieltag/{year}/signups/{mid} {
       allow read: if true;
       allow write: if isAdmin();
       allow create, update: if isMember() && mid == myId()
-        && get(/databases/$(database)/documents/spieltag/$(year)).data.get('signupOpen', false) == true
+        && signupIsOpen(year)
         && request.resource.data.keys().hasOnly(['pid', 'status', 'at'])
         && request.resource.data.status in ['ja', 'nein']
         && personOfMe(request.resource.data.pid);
@@ -229,12 +240,17 @@ service cloud.firestore {
     // finance/<gv-jahr>/belege/<buchung>_<n> = Beleg (Foto/PDF als Base64-Stücke)
     // finance/<gv-jahr> = Vereinsjahr (Anfangsbestand, Kasse, Beitrag),
     // finance/<gv-jahr>/bookings/<id> = Kontobewegungen, finance/<gv-jahr>/fees/<memberId> = Jahresbeiträge
+    // Während des Vereinsjahrs liest nur der Vorstand; an der GV gibt der Kassier das Jahr frei
+    // (finance/<jahr>.shared = true), dann sehen es alle eingeloggten Mitglieder.
+    function financeShared(year) {
+      return get(/databases/$(database)/documents/finance/$(year)).data.get('shared', false) == true;
+    }
     match /finance/{year} {
-      allow read: if isMember();
+      allow read: if isVorstand() || (isMember() && resource.data.get('shared', false) == true);
       allow write: if isKassier();
     }
     match /finance/{year}/{list}/{id} {
-      allow read: if isMember();
+      allow read: if isVorstand() || (isMember() && financeShared(year));
       allow write: if isKassier();
     }
   }

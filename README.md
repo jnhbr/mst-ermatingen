@@ -13,6 +13,9 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
   Kassier: Beitrag per WhatsApp anfordern (einzeln über api.whatsapp.com (nicht wa.me – zerschiesst Emojis) mit Handynummer aus `contacts/<memberId>` – nur Vorstand
   lesbar – oder Sammelnachricht), danach Status «Twint angefordert»; Belege (Foto/PDF, Fotos auf 1600 px verkleinert)
   hängen an der Buchung: `finance/<jahr>/belege/<buchung>_<n>` (Base64-Stücke), Metadaten in `bookings/<id>.beleg`.
+- Finanzen sieht während des Vereinsjahrs nur der Vorstand (Kachel nur für Vorstand). An der GV setzt der Kassier oben auf der
+  Finanzen-Seite «für alle Mitglieder freigeben» (`finance/<jahr>.shared`), dann sehen alle Mitglieder das Jahr inkl.
+  Finanzseiten der GV-Übersicht; vorher zeigt die GV-Seite Mitgliedern statt Beträgen «(an der GV)».
 - `css/gv.css` – gemeinsame Bildschirm-Stile von GV und Finanzen (Druckstile bleiben in `gv/index.html`)
 - `spieltag/` – Ermatinger Minispieltag, **öffentlich** (Zuschauer ohne Login): Live-Rangliste, Spiele, Historie 2020–…;
   als Admin: Spiele wechseln/einstellen (Einzel, 2er, 3er …, Modus, Punkte), auslosen, Teams anpassen, Resultate eintragen
@@ -60,6 +63,10 @@ Bis 2.10.2026 lief Padel auf Netlify (mst-padel.netlify.app, Repo `MST-Ermatinge
 - Zeitplan: pro Spiel Start, Ort, Felder, Minuten/Partie (Tab «Zeitplan», Admin) → geschätzte Zeit + Feld jeder Partie.
 - TV-Ansicht: `spieltag/#tv` (Rangliste, Als Nächstes, Tagesablauf, Bierkapitän falls eingeloggt; QR-Code).
 - Selbst-Anmeldungen liegen in `spieltag/<jahr>/signups/<memberId>`; Teilnehmende = Liste + Anmeldungen.
+  Anmelden geht auch mit einem Tipp direkt auf der Startseite (Balken «Anmelden für <Jahr>» in der Spieltag-Kachel).
+  Anmeldeschluss `spieltag/<jahr>.signupUntil` ("JJJJ-MM-TT", der Tag zählt noch): wird beim Speichern des Datums in der
+  Organisation automatisch auf 14 Tage davor gesetzt (änderbar), die Firestore-Regeln sperren danach (`MST.signupUntil()`).
+  Gäste (ohne Login) meldet nur der Admin in der Organisation an, optional mit Handynummer (`contacts/<pid>`, nur Vorstand).
   Bierkapitän: `spieltag/<jahr>/beer/<id>` { pid, l:0.5|0.33, at, by }.
 - Testmodus: `spieltag/?test` (als Admin) bzw. `spieltag/?test&als=m5` (als Mitglied Nr. 5) bzw. `spieltag/organisation/?test` – liest die echten Daten, Änderungen bleiben
   im Browserfenster (Knopf «Zufallsresultate» zum Durchspielen). Ideal zum Ausprobieren vor dem Spieltag.

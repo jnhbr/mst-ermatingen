@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/mst.css?v=202610031500">
+<link rel="stylesheet" href="css/mst.css?v=202610041230">
 <style>
   .home-hero{position:relative; display:flex; align-items:center; gap:22px; padding:34px 4px 26px; overflow:hidden;}
   .home-hero .logo{width:96px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
@@ -66,6 +66,20 @@
   .next-ev .ne-sub{font-size:12px; color:var(--muted);}
   .next-ev > span:last-child{min-width:0;}
   .tile.insta .tile-icon{color:var(--yellow);}
+
+  /* Spieltag-Kachel mit Anmelde-Balken */
+  .tile-split{padding:0;}
+  .tile-split:hover{border-color:var(--yellow);}
+  .tile-split:hover .tile-go{color:var(--yellow);}
+  .tile-link{display:flex; flex-direction:column; gap:6px; flex:1; padding:18px; color:inherit; text-decoration:none;}
+  .tile-signup{border-top:1px solid var(--line); padding:12px 18px 14px; display:flex; flex-direction:column; gap:6px;}
+  .tile-signup[hidden]{display:none;}
+  .signup-btn{width:100%; padding:12px 14px; border:0; border-radius:var(--radius-sm); background:var(--yellow); color:#141311; font-family:var(--font-display); font-size:20px; letter-spacing:.03em; text-transform:uppercase; cursor:pointer;}
+  .signup-btn:disabled{opacity:.6; cursor:wait;}
+  .signup-done{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--yellow); font-weight:600;}
+  .signup-done .link-btn{font-size:12px;}
+  .signup-note{font-size:12px; color:var(--muted);}
+  .signup-note b{color:var(--white); font-weight:600;}
 </style>
 </head>
 <body>
@@ -100,12 +114,15 @@
       <span class="tile-title">Padel</span>
       <span class="tile-text">Donnerstag 18:00–19:30 · Padel am See, Kreuzlingen. Anmelden, Gäste, Bierrunden, Abrechnung.</span>
     </a>
-    <a class="tile active" href="spieltag/">
-      <span class="tile-go">Öffnen →</span>
-      <span class="tile-icon">🏆</span>
-      <span class="tile-title">Spieltag</span>
-      <span class="tile-text">Ermatinger Minispieltag: Spiele, Live-Rangliste und die Historie seit 2020.</span>
-    </a>
+    <div class="tile active tile-split">
+      <a class="tile-link" href="spieltag/">
+        <span class="tile-go">Öffnen →</span>
+        <span class="tile-icon">🏆</span>
+        <span class="tile-title">Spieltag</span>
+        <span class="tile-text">Ermatinger Minispieltag: Spiele, Live-Rangliste und die Historie seit 2020.</span>
+      </a>
+      <div class="tile-signup" id="signupBar" hidden></div>
+    </div>
     <a class="tile" href="spieltag/organisation/" id="orgTile" hidden>
       <span class="tile-go">Admin →</span>
       <span class="tile-icon">🗂️</span>
@@ -124,7 +141,7 @@
       <span class="tile-title">GV</span>
       <span class="tile-text">Traktanden, Mitglieder, Protokoll – druckbar wie die GV-Übersicht.</span>
     </a>
-    <a class="tile active" href="finanzen/">
+    <a class="tile active" href="finanzen/" id="finTile" hidden>
       <span class="tile-go">Öffnen →</span>
       <span class="tile-icon">💰</span>
       <span class="tile-title">Finanzen</span>
@@ -145,12 +162,14 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="js/mst.js?v=202610031500" data-base=""></script>
-<script src="js/kalender.js?v=202610041015"></script>
+<script src="js/mst.js?v=202610041230" data-base=""></script>
+<script src="js/kalender.js?v=202610041230"></script>
 <script>
 MST.start((user) => {
   document.getElementById("greeting").textContent = `Hoi ${user.short}!`;
   showNextEvents();
+  showSignup();
+  if(user.vorstand) document.getElementById("finTile").hidden = false;   // Finanzen während des Jahres nur Vorstand
   if(user.admin){ document.getElementById("orgTile").hidden = false; renderAdmin(); }
 });
 
@@ -170,6 +189,68 @@ async function showNextEvents(){
   const c = KAL.cached();
   if(c) draw(c.events);
   try{ draw(await KAL.load(false)); }catch(e){ console.warn("Kalender", e); }
+}
+
+/* ---------- Spieltag-Kachel: «Anmelden für <Jahr>» mit einem Tipp ---------- */
+// gleiche Daten wie die Spieltag-Seite: spieltag/<jahr>/signups/<memberId> = { pid, status, at }
+const signupState = { year:null, yd:null, pid:null, signup:null, busy:false };
+async function showSignup(){
+  const s = signupState, me = MST.user.id;
+  try{
+    const set = await db.collection("spieltagMeta").doc("settings").get();
+    s.year = set.exists ? set.data().currentYear : null;
+    if(!s.year) return;
+    db.collection("spieltag").doc(s.year).onSnapshot(d => { s.yd = d.exists ? d.data() : null; drawSignup(); }, e => console.warn("Spieltag", e));
+    db.collection("spieltag").doc(s.year).collection("signups").doc(me)
+      .onSnapshot(d => { s.signup = d.exists ? d.data() : null; drawSignup(); }, e => console.warn("Anmeldung", e));
+    const p = await db.collection("spieltagPersons").where("memberId", "==", me).limit(1).get();
+    s.pid = p.empty ? null : p.docs[0].id;
+    drawSignup();
+  }catch(e){ console.warn("Anmeldung", e); }
+}
+function signedUp(){
+  const s = signupState;
+  if(s.signup) return s.signup.status === "ja";
+  return !!s.pid && ((s.yd && s.yd.participants) || []).includes(s.pid);
+}
+function drawSignup(){
+  const s = signupState, el = document.getElementById("signupBar");
+  if(!s.yd || s.yd.closed){ el.hidden = true; return; }
+  const open = MST.signupOpenNow(s.yd), until = MST.signupUntil(s.yd), inList = signedUp();
+  const day = s.yd.date ? MST.fmtDay(s.yd.date) : "Datum folgt";
+  if(!open && !inList){
+    // Anmeldung noch nicht geöffnet → nichts zeigen; nach dem Schluss nur ein Hinweis
+    el.hidden = !(s.yd.signupOpen && until);
+    el.innerHTML = `<span class="signup-note">Anmeldeschluss für ${esc(s.year)} war am ${esc(MST.fmtDay(until))} – melde dich direkt bei Jan.</span>`;
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = inList
+    ? `<div class="signup-done"><span>✓ Angemeldet für ${esc(s.year)}</span>${open ? '<button class="link-btn" id="signOff" type="button">abmelden</button>' : ""}</div>
+       <span class="signup-note">${esc(day)}${s.yd.place ? " · " + esc(s.yd.place) : ""}</span>`
+    : `<button class="signup-btn" id="signOn" type="button">Anmelden für ${esc(s.year)}</button>
+       <span class="signup-note">${esc(day)}${until ? ` · Anmeldeschluss <b>${esc(MST.fmtDay(until))}</b>` : ""}</span>`;
+  const on = document.getElementById("signOn"), off = document.getElementById("signOff");
+  if(on) on.onclick = () => doSignup("ja", on);
+  if(off) off.onclick = () => { if(confirm(`Für den Spieltag ${s.year} abmelden?`)) doSignup("nein", off); };
+}
+async function doSignup(status, btn){
+  const s = signupState, me = MST.user.id;
+  btn.disabled = true;
+  try{
+    if(!s.pid){
+      // Mitglied hat noch keinen Spielnamen → Person anlegen (wie auf der Spieltag-Seite)
+      const d = MST.directory[me] || {};
+      await db.collection("spieltagPersons").doc(me).set({ name:d.short || (d.name || "").split(" ")[0] || me, memberId:me });
+      s.pid = me;
+    }
+    await db.collection("spieltag").doc(s.year).collection("signups").doc(me).set({ pid:s.pid, status, at:Date.now() });
+    MST.log("spieltag", `Spieltag ${s.year}: ${status === "ja" ? "angemeldet" : "abgemeldet"} (Startseite)`);
+  }catch(e){
+    console.error(e);
+    alert("Hat nicht geklappt – ist die Anmeldung noch offen?");
+    btn.disabled = false;
+  }
 }
 
 /* ---------- Admin: Mitglieder verwalten ---------- */

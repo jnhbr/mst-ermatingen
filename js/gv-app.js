@@ -39,6 +39,17 @@ const gvMonth = () => gv && gv.date ? `${MONTHS[parseInt(gv.date.slice(5, 7), 10
 const canGV = () => !!(me && me.vorstand);
 const canFin = () => !!(me && me.kassier);
 const canProt = () => !!(me && me.aktuar);
+// Finanzen: während des Vereinsjahrs nur Vorstand; an der GV gibt der Kassier sie frei (finance/<jahr>.shared)
+const finVisible = () => !!(me && me.vorstand) || !!(fin && fin.shared);
+const shareToggle = () => canFin() ? `<label class="check-label small" style="margin:0 0 12px; display:flex; gap:8px; align-items:center">
+    <input type="checkbox" id="finShare" ${fin && fin.shared ? "checked" : ""}> Finanzen ${esc(vjLabel())} für alle Mitglieder freigeben (an der GV) – sonst sieht sie nur der Vorstand</label>` : "";
+function bindShareToggle(){
+  const t = document.getElementById("finShare");
+  if(t) t.onchange = async () => {
+    await db.collection("finance").doc(Y).set({ shared:t.checked }, { merge:true });
+    MST.log("finanzen", `Finanzen ${vjLabel()} ${t.checked ? "für Mitglieder freigegeben" : "nur noch für den Vorstand"}`);
+  };
+}
 
 /* ---------- Start ---------- */
 MST.start(async user => {
@@ -60,9 +71,11 @@ function openYear(y){
   unsub.push(g.onSnapshot(d => { gv = d.exists ? d.data() : {}; draw(); }));
   unsub.push(g.collection("protokoll").doc("main").onSnapshot(d => { prot = d.exists ? d.data() : {}; if(!isTyping()) draw(); }));
   unsub.push(g.collection("antraege").onSnapshot(s => { antraege = s.docs.map(d => Object.assign({ id:d.id }, d.data())).sort((a, b) => a.at - b.at); draw(); }));
-  unsub.push(f.onSnapshot(d => { fin = d.exists ? d.data() : null; draw(); }));
-  unsub.push(f.collection("bookings").onSnapshot(s => { bookings = s.docs.map(d => Object.assign({ id:d.id }, d.data())); if(!isTyping()) draw(); }));
-  unsub.push(f.collection("fees").onSnapshot(s => { fees = {}; s.docs.forEach(d => fees[d.id] = d.data()); if(!isTyping()) draw(); }));
+  // Mitglieder dürfen die Finanzen erst lesen, wenn sie freigegeben sind – Fehler dann einfach leer lassen
+  const none = () => {};
+  unsub.push(f.onSnapshot(d => { fin = d.exists ? d.data() : null; draw(); }, () => { fin = null; draw(); }));
+  unsub.push(f.collection("bookings").onSnapshot(s => { bookings = s.docs.map(d => Object.assign({ id:d.id }, d.data())); if(!isTyping()) draw(); }, none));
+  unsub.push(f.collection("fees").onSnapshot(s => { fees = {}; s.docs.forEach(d => fees[d.id] = d.data()); if(!isTyping()) draw(); }, none));
   db.collection("awb").doc(y).collection("shifts").get().then(s => { shifts = s.docs.map(d => d.data()); draw(); }).catch(() => {});
   db.collection("spieltagHistory").doc(y).get().then(d => { histY = d.exists ? d.data() : null; draw(); }).catch(() => {});
   db.collection("spieltag").doc(y).collection("beer").get().then(s => { beerY = s.docs.map(d => d.data()); draw(); }).catch(() => {});
@@ -140,8 +153,9 @@ function tokens(){
   const mutText = [mu.in.length ? "Eintritte: " + mu.in.map(x => x.m.name).join(", ") : "", mu.out.length ? "Austritte: " + mu.out.map(x => x.m.name).join(", ") : ""].filter(Boolean).join(" · ") || "keine Ein- und Austritte";
   return {
     jahr:Y, kurz:String(Y).slice(2), vorjahr:String(parseInt(Y, 10) - 1), naechstes:String(parseInt(Y, 10) + 1), edition:String(edition()), vereinsjahr:vjLabel(),
-    gewinnAWB:CHF(F.awbProfit), vermoegen:CHF(F.total), kontostand:CHF(F.closing), kasse:CHF(F.cash),
-    beitrag:CHFr(num(v.fee)), rabatt:CHFr(num(v.discount)), twint:v.twint || "", beitraegeErwartet:CHF(T.expected), beitraegeOffen:CHF(T.open),
+    ...(finVisible() ? { gewinnAWB:CHF(F.awbProfit), vermoegen:CHF(F.total), kontostand:CHF(F.closing), kasse:CHF(F.cash) }
+      : { gewinnAWB:"(an der GV)", vermoegen:"(an der GV)", kontostand:"(an der GV)", kasse:"(an der GV)" }),
+    beitrag:CHFr(num(v.fee)), rabatt:CHFr(num(v.discount)), twint:v.twint || "", beitraegeErwartet:CHF(T.expected), beitraegeOffen:finVisible() ? CHF(T.open) : "(an der GV)",
     praesident:nm(v.vorstand.praesident), aktuar:nm(v.vorstand.aktuar), kassier:nm(v.vorstand.kassier), stimmenzaehler:nm(v.stimmenzaehler),
     mitglieder:String(members().length), mutationen:mutText
   };
@@ -177,7 +191,7 @@ function draw(){
   if(!fm && gv && gv.chunks) tabs.push(["archiv", "PDF"]);
   if(!fm && canGV()) tabs.push(["einstellungen", "Einstellungen"]);
   const T = Y ? feeTotals() : null;
-  const stats = !Y ? "" : fm ? `
+  const stats = !Y || (fm && !finVisible()) ? "" : fm ? `
         <div class="stat-chip"><span class="num">${fin ? esc(CHF(finance().total).replace("CHF ", "")) : "–"}</span><span class="lbl">Vermögen CHF</span></div>
         <div class="stat-chip"><span class="num">${feeList().filter(x => !x.fee.vorstand && x.fee.amount > 0 && x.st === "bezahlt").length}/${T.payers}</span><span class="lbl">Beiträge bezahlt</span></div>
         <div class="stat-chip"><span class="num">${esc(CHF(T.open).replace("CHF ", ""))}</span><span class="lbl">offen CHF</span></div>` : `
@@ -193,7 +207,7 @@ function draw(){
           <span class="eyebrow">${fm ? (Y ? `Vereinsjahr ${dCH(vjStart())} – ${dCH(vjEnd())} · Kassier ${esc(memberName(V().vorstand.kassier))}` : "Vereinsjahr")
             : Y ? `${edition()}. Generalversammlung · ${esc(gvWhen())}` : "Generalversammlung"}</span>
           <h1 class="hero-title">${fm ? `Finanzen ${Y ? esc(vjLabel()) : ""}` : `GV ${esc(Y || "")}`}</h1>
-          <p class="hero-sub">${fm ? "Jahresbeiträge, Kontobewegungen und Afterworkbar-Abrechnung – nur für Mitglieder" : "Traktanden, Mitglieder und Protokoll – nur für Mitglieder"}</p>
+          <p class="hero-sub">${fm ? (fin && fin.shared ? "Jahresbeiträge, Kontobewegungen und Afterworkbar-Abrechnung – an der GV für alle Mitglieder freigegeben" : "Jahresbeiträge, Kontobewegungen und Afterworkbar-Abrechnung – während des Vereinsjahrs nur für den Vorstand") : "Traktanden, Mitglieder und Protokoll – nur für Mitglieder"}</p>
           ${years.length > 1 ? `<select class="season-select" id="yearSelect">${years.slice().reverse().map(y => `<option value="${y}" ${y === Y ? "selected" : ""}>${fm ? `Vereinsjahr ${parseInt(y, 10) - 1}/${y.slice(2)}` : `GV ${y}`}</option>`).join("")}</select>` : ""}
         </div>
       </div>
@@ -209,9 +223,11 @@ function draw(){
   if(ys) ys.onchange = () => openYear(ys.value);
   const c = document.getElementById("content");
   if(!Y || !gv){ c.innerHTML = `<div class="card"><p class="muted">${Y ? "lade …" : fm ? 'Noch kein Vereinsjahr – zuerst auf der <a href="../gv/">GV-Seite</a> eine GV anlegen.' : "Noch keine GV angelegt."}</p>${canGV() && !Y && !fm ? '<button class="btn-primary" id="firstGV">GV anlegen</button>' : ""}</div>`; return; }
+  if(fm && !finVisible()){ c.innerHTML = `<div class="card"><h3>Nur für den Vorstand</h3><p class="muted">Die Finanzen ${esc(vjLabel())} sieht während des Vereinsjahrs nur der Vorstand. An der GV gibt der Kassier sie für alle frei.</p></div>`; return; }
   const views = fm ? { beitraege:viewFees, konto:viewFinance }
     : { uebersicht:viewOverview, traktanden:viewTraktanden, mitglieder:viewMembers, protokoll:viewProtocol, archiv:viewArchive, einstellungen:viewSettings };
   (views[tab] || Object.values(views)[0])(c);
+  if(fm && canFin()){ c.insertAdjacentHTML("afterbegin", shareToggle()); bindShareToggle(); }
 }
 function scalePages(){
   document.querySelectorAll(".paper").forEach(p => {
@@ -239,11 +255,12 @@ function viewOverview(c){
       <span class="small muted">Druckt im Stil der GV-Übersicht 2026 (Calibri, A4). Im Druckdialog «Hintergrundgrafiken» einschalten.</span>
     </div>
     <div class="kpi-row">
-      <div class="kpi"><div class="v">${esc(CHF(F.total))}</div><div class="l">Vermögen</div></div>
+      ${finVisible() ? `<div class="kpi"><div class="v">${esc(CHF(F.total))}</div><div class="l">Vermögen</div></div>
       <div class="kpi"><div class="v">${esc(CHF(F.awbProfit))}</div><div class="l">Gewinn Afterworkbar</div></div>
-      <div class="kpi"><div class="v">${esc(CHF(T.open))}</div><div class="l">Beiträge offen</div></div>
+      <div class="kpi"><div class="v">${esc(CHF(T.open))}</div><div class="l">Beiträge offen</div></div>` : ""}
       <div class="kpi"><div class="v">${traktanden().length}</div><div class="l">Traktanden</div></div>
     </div>
+    ${finVisible() ? "" : '<p class="rule-note">Die Finanzen sieht während des Vereinsjahrs nur der Vorstand – an der GV werden sie für alle freigegeben.</p>'}
     <div class="paper">${buildOverview()}</div>`;
   scalePages();
   document.getElementById("printOv").onclick = () => doPrint(buildOverview());
@@ -275,7 +292,8 @@ function buildOverview(){
   pages.forEach((idx, pi) => {
     html += `<div class="page">${pi === 0 ? bar("Traktanden", `${edition()}. Generalversammlung MST Ermatingen · ${gvMonth()}`) : ""}${idx.map(i => tkHtml(tks[i], i)).join("")}${foot()}</div>`;
   });
-  // Finanzen
+  // Finanzen (für Mitglieder erst nach der Freigabe an der GV)
+  if(finVisible()){
   const maxIn = Math.max(1, ...F.inCats.map(x => x[1])), maxOut = Math.max(1, ...F.outCats.map(x => x[1]));
   const prevProfit = (F.awb.profits || {})[String(parseInt(Y, 10) - 1)];
   html += `<div class="page">${bar(`Finanzen ${vjLabel()}`, `Vereinsjahr ${dCH(vjStart())} – ${dCH(vjEnd())} · Kassier: ${memberName(v.vorstand.kassier)}`)}
@@ -333,14 +351,15 @@ function buildOverview(){
         <tr class="hl"><td>Gewinn Afterworkbar ${Y}</td><td class="num">${CHF(F.awbProfit)}</td><td class="small" style="color:#FFF200">Einnahmen − Kosten${F.awb.kassenstockNeu ? " · Kassenstock neu: " + CHFr(num(F.awb.kassenstockNeu)) : ""}</td></tr></tbody></table>
       ${foot()}</div>`;
   }
+  }
   // Mitglieder & Helfereinsätze
   const fl = feeList();
   html += `<div class="page">${bar("Mitglieder & Helfereinsätze", `Jahresbeitrag ${CHFr(num(v.fee))} · pro Helfereinsatz ${CHFr(num(v.discount))} Rabatt · Vorstand befreit`)}
-    <table class="t"><thead><tr><th style="width:9mm">Nr.</th><th>Alias</th><th>Name</th><th class="c">AWB</th><th class="c">Auf-/Abbau</th><th class="num">Beitrag</th><th class="c">bezahlt</th></tr></thead><tbody>
+    <table class="t"><thead><tr><th style="width:9mm">Nr.</th><th>Alias</th><th>Name</th><th class="c">AWB</th><th class="c">Auf-/Abbau</th><th class="num">Beitrag</th>${finVisible() ? '<th class="c">bezahlt</th>' : ""}</tr></thead><tbody>
     ${fl.map(x => `<tr><td>${x.id.slice(1)}</td><td><b>${esc(x.m.alias || x.m.short || "")}</b></td><td>${esc(x.m.name)}${x.fee.label && !x.fee.vorstand ? ` <span class="small">(${esc(x.fee.label)})</span>` : ""}</td>
       <td class="c">${x.h.awb ? "✓" : "–"}</td><td class="c">${x.h.aufbau ? "✓" : "–"}</td>
       <td class="num">${x.fee.vorstand ? '<span class="small">Vorstand</span>' : "<b>" + CHF(x.fee.amount) + "</b>"}</td>
-      <td class="c">${x.fee.vorstand ? "" : `<span class="chk">${x.st === "bezahlt" ? "✓" : ""}</span>`}</td></tr>`).join("")}
+      ${finVisible() ? `<td class="c">${x.fee.vorstand ? "" : `<span class="chk">${x.st === "bezahlt" ? "✓" : ""}</span>`}</td>` : ""}</tr>`).join("")}
     </tbody></table>
     ${mu.in.length || mu.out.length ? `<div class="lbl">Mutationen Vereinsjahr ${vjLabel()}</div><p style="margin:0">${mu.in.length ? "<b>Eintritte:</b> " + mu.in.map(x => `${esc(x.m.name)} (${dCH(x.d)})`).join(", ") : ""}${mu.in.length && mu.out.length ? "<br>" : ""}${mu.out.length ? "<b>Austritte:</b> " + mu.out.map(x => `${esc(x.m.name)} (${dCH(x.d)})`).join(", ") : ""}</p>` : ""}
     ${foot()}</div>`;
@@ -398,9 +417,9 @@ function rueckblickPage(){
   const boxes = [];
   if(r.spieltag) boxes.push(`<div><h3>🏆 Minispieltag ${Y}</h3><p>${r.spieltag.n} Teilnehmende, ${r.spieltag.d} Disziplinen</p>
     <p>${r.spieltag.top.map(x => `<b>${x.rank}.</b> ${esc(x.name)} (${x.total})`).join(" · ")}</p>${r.beer ? `<p>🍺 Bierkapitän: <b>${esc(pname(r.beer.pid))}</b> (${r.beer.l.toFixed(2)} l)</p>` : ""}</div>`);
-  boxes.push(`<div><h3>🍹 Afterworkbar ${Y}</h3><p>Gewinn <b>${CHF(F.awbProfit)}</b></p>${r.awb ? `<p>${r.awb.helpers} Helfer:innen, ${r.awb.filled} von ${r.awb.total} Einsätzen besetzt</p>` : ""}</div>`);
+  boxes.push(`<div><h3>🍹 Afterworkbar ${Y}</h3>${finVisible() ? `<p>Gewinn <b>${CHF(F.awbProfit)}</b></p>` : ""}${r.awb ? `<p>${r.awb.helpers} Helfer:innen, ${r.awb.filled} von ${r.awb.total} Einsätzen besetzt</p>` : ""}</div>`);
   boxes.push(`<div><h3>👥 Mitglieder</h3><p>${members().length} Mitglieder</p><p>${r.mu.in.length ? "Neu: " + r.mu.in.map(x => esc(x.m.name)).join(", ") : "keine Eintritte"}${r.mu.out.length ? "<br>Ausgetreten: " + r.mu.out.map(x => esc(x.m.name)).join(", ") : ""}</p></div>`);
-  boxes.push(`<div><h3>💰 Finanzen</h3><p>Vermögen ${CHF(F.total)} (${F.delta >= 0 ? "+" : ""}${CHF(F.delta).replace("CHF ", "")} ggü. Vorjahr)</p></div>`);
+  if(finVisible()) boxes.push(`<div><h3>💰 Finanzen</h3><p>Vermögen ${CHF(F.total)} (${F.delta >= 0 ? "+" : ""}${CHF(F.delta).replace("CHF ", "")} ggü. Vorjahr)</p></div>`);
   return `<div class="page">${bar(`Jahresrückblick ${vjLabel()}`, "Was im Vereinsjahr gelaufen ist")}
     <div class="rb">${boxes.join("")}</div>
     ${gv.rueckblick ? `<div class="lbl">Weitere Höhepunkte</div><div style="white-space:pre-wrap">${esc(fill(gv.rueckblick))}</div>` : ""}
@@ -505,7 +524,7 @@ function viewMembers(c){
       </div>
       <div class="card"><h3>Vorstand</h3>
         <p>Präsident: <b>${esc(memberName(v.vorstand.praesident))}</b><br>Aktuar: <b>${esc(memberName(v.vorstand.aktuar))}</b><br>Kassier: <b>${esc(memberName(v.vorstand.kassier))}</b>${v.twint ? ` (Twint ${esc(v.twint)})` : ""}</p>
-        <p class="rule-note" style="margin:10px 0 0">Jahresbeiträge und Kontobewegungen: <a href="../finanzen/${Y ? "?jahr=" + esc(Y) : ""}">Finanzen →</a></p>
+        ${finVisible() ? `<p class="rule-note" style="margin:10px 0 0">Jahresbeiträge und Kontobewegungen: <a href="../finanzen/${Y ? "?jahr=" + esc(Y) : ""}">Finanzen →</a></p>` : ""}
       </div>
     </div>
     <div class="card" style="margin-top:12px"><h3>Mitgliederliste</h3>

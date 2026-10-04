@@ -13,8 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../css/mst.css?v=202610031500">
-<link rel="stylesheet" href="../../css/spieltag.css?v=202610031500">
+<link rel="stylesheet" href="../../css/mst.css?v=202610041230">
+<link rel="stylesheet" href="../../css/spieltag.css?v=202610041230">
 <style>
   .two-col{display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:12px; align-items:start;}
   @media (max-width:860px){ .two-col{grid-template-columns:1fr;} }
@@ -52,12 +52,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../../js/mst.js?v=202610031500" data-base="../../"></script>
-<script src="../../js/spieltag-engine.js?v=202610031500"></script>
+<script src="../../js/mst.js?v=202610041230" data-base="../../"></script>
+<script src="../../js/spieltag-engine.js?v=202610041230"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="../../js/spieltag-stats.js?v=202610031500"></script>
-<script src="../../js/spieltag-data.js?v=202610031500"></script>
-<script src="../../js/spieltag-ui.js?v=202610031500"></script>
+<script src="../../js/spieltag-stats.js?v=202610041230"></script>
+<script src="../../js/spieltag-data.js?v=202610041230"></script>
+<script src="../../js/spieltag-ui.js?v=202610041230"></script>
 <script>
 /* ===================== Spieltag-Organisation (nur Admin) =====================
    Teilnehmende des Jahres, Personen (Mitglieder + Gäste), Grundgerüst der
@@ -182,6 +182,7 @@ function viewParticipants(c){
       <div class="count-row"><span class="count-big">${n}</span><span class="muted">angemeldet für ${esc(YEAR)}${n % 2 ? " · ungerade Zahl – geht trotzdem auf (siehe rechts)" : ""}</span></div>
       <div class="inline-form" style="margin-bottom:6px">
         <label>Gast dazunehmen<input id="guestName" autocomplete="off" placeholder="Spielname, z. B. Vando"></label>
+        <label>Handy (nur Vorstand)<input id="guestPhone" autocomplete="off" inputmode="tel" placeholder="079 …"></label>
         <button class="btn-primary" id="guestAdd">+ Gast</button>
         <input class="search" id="search" placeholder="suchen …" value="${esc(filter)}" style="margin-left:auto">
       </div>
@@ -205,6 +206,7 @@ function viewParticipants(c){
   s.oninput = () => { filter = s.value; const pos = s.selectionStart; draw(); const s2 = document.getElementById("search"); s2.focus(); s2.setSelectionRange(pos, pos); };
   document.getElementById("guestAdd").onclick = addGuest;
   document.getElementById("guestName").onkeydown = e => { if(e.key === "Enter") addGuest(); };
+  document.getElementById("guestPhone").onkeydown = e => { if(e.key === "Enter") addGuest(); };
 }
 function fitList(n){
   const gs = ((yearDoc && yearDoc.games) || []).map(E.normalizeGame);
@@ -235,21 +237,35 @@ async function toggle(ids, on){
   log(`Spieltag ${YEAR}: ${ids.map(i => ST.nameOf(i)).join(", ")} ${on ? "angemeldet" : "abgemeldet"}`);
 }
 async function addGuest(){
-  const inp = document.getElementById("guestName");
-  const name = inp.value.trim();
+  const inp = document.getElementById("guestName"), ph = document.getElementById("guestPhone");
+  const name = inp.value.trim(), phone = ph.value.trim();
   if(!name) return;
-  inp.value = "";
+  inp.value = ""; ph.value = "";
   const existing = Object.keys(ST.persons).find(id => ST.nameOf(id).toLowerCase() === name.toLowerCase());
   if(existing){
+    if(phone) await savePhone(existing, phone);
     await toggle([existing], true);
     note("pMsg", `${name} gibt es schon – angemeldet.`);
     return;
   }
   const id = "g_" + ST.slug(name) + "_" + Math.random().toString(36).slice(2, 6);
   await D.set(`spieltagPersons/${id}`, { name, memberId:null, nr:ST.nextGuestNr() });
+  if(phone) await savePhone(id, phone);
   await toggle([id], true);
   note("pMsg", `Gast ${name} angelegt und angemeldet.`);
   const again = document.getElementById("guestName"); if(again) again.focus();
+}
+
+/* Handynummern liegen in contacts/<id> (nur Vorstand lesbar), wie bei den Jahresbeiträgen */
+async function savePhone(id, phone){
+  if(D.test) return;
+  try{ await db.collection("contacts").doc(id).set({ phone }, { merge:true }); }
+  catch(e){ console.warn("Handynummer", e); }
+}
+async function loadPhone(id){
+  if(D.test) return "";
+  try{ const d = await db.collection("contacts").doc(id).get(); return d.exists ? d.data().phone || "" : ""; }
+  catch(e){ return ""; }
 }
 
 /* ---------- Personen & Mitglieder ---------- */
@@ -328,8 +344,9 @@ async function saveMember(e){
     draw();
   }catch(err){ console.error(err); note("mMsg", "Speichern fehlgeschlagen."); }
 }
-function editPerson(id){
+async function editPerson(id){
   const p = ST.persons[id];
+  const phone = p.memberId ? "" : await loadPhone(id);
   const used = history.some(y => (y.rows || []).some(r => (r.pids || []).includes(id))) || participants().includes(id)
     || Object.values(gameData).some(d => (d.units || []).some(u => u.members.includes(id)));
   let dlg = document.getElementById("pDlg");
@@ -338,6 +355,7 @@ function editPerson(id){
     <h3>${esc(p.name)}</h3><p class="dlg-sub">${p.memberId ? "Vereinsmitglied Nr. " + esc(p.memberId.slice(1)) : "Gast"}</p>
     <label>Spielname<input name="name" value="${esc(p.name)}" required></label>
     <label>Startnummer<input name="nr" value="${esc(p.nr || (p.memberId ? p.memberId.slice(1) : ""))}" placeholder="z. B. 97"></label>
+    ${p.memberId ? "" : `<label>Handy (nur Vorstand)<input name="phone" value="${esc(phone)}" inputmode="tel" placeholder="079 …"></label>`}
     ${p.memberId ? "" : `<label>Ist jetzt Vereinsmitglied mit Nr.<input name="mnr" inputmode="numeric" placeholder="leer lassen = bleibt Gast"></label>
       <p class="rule-note" style="margin:0">Fürs Login dann «Neues Vereinsmitglied» mit derselben Nummer und demselben Spielnamen ausfüllen – die Historie bleibt erhalten.</p>`}
     <div class="dlg-actions">
@@ -352,6 +370,7 @@ function editPerson(id){
     const upd = { name:f.name.value.trim() || p.name, memberId:p.memberId || null, nr:f.nr.value.trim() || p.nr || "" };
     if(f.mnr && f.mnr.value.trim()){ upd.memberId = "m" + parseInt(f.mnr.value, 10); upd.nr = String(parseInt(f.mnr.value, 10)); }
     await D.set(`spieltagPersons/${id}`, upd);
+    if(f.phone && f.phone.value.trim() !== phone) await savePhone(id, f.phone.value.trim());
     log(`Spieltag-Person ${p.name} → ${upd.name}${upd.memberId !== p.memberId ? " (Mitglied " + upd.memberId + ")" : ""}`);
     dlg.close();
   };
@@ -411,11 +430,12 @@ function viewYears(c){
         <form class="grid-form" id="infoForm">
           <label>Datum<input type="date" name="date" value="${esc(yearDoc.date || "")}"></label>
           <label>Ort<input name="place" value="${esc(yearDoc.place || "")}" placeholder="z. B. Hörnle Konstanz"></label>
+          <label>Anmeldeschluss<input type="date" name="until" value="${esc(MST.signupUntil(yearDoc) || "")}" title="Standard: 14 Tage vor dem Spieltag; der Tag zählt noch"></label>
           <button class="btn-primary" type="submit">Speichern</button>
         </form>
         <p class="form-msg" id="iMsg"></p>
         <div class="group-title" style="margin-top:18px"><span>Funktionen</span></div>
-        <label class="check-label" style="padding:4px 0"><input type="checkbox" id="optSignup" ${yearDoc.signupOpen ? "checked" : ""}> Selbst-Anmeldung offen – Mitglieder melden sich mit ihrem Login selbst an/ab</label>
+        <label class="check-label" style="padding:4px 0"><input type="checkbox" id="optSignup" ${yearDoc.signupOpen ? "checked" : ""}> Selbst-Anmeldung offen – Mitglieder melden sich mit ihrem Login selbst an/ab (Startseite und Spieltag-Seite), bis und mit Anmeldeschluss</label>
         <label class="check-label" style="padding:4px 0"><input type="checkbox" id="optBeer" ${yearDoc.beerOn ? "checked" : ""}> Bierkapitän – Mitglieder zählen ihre Biere selbst (nur für Eingeloggte sichtbar)</label>
         <label class="check-label" style="padding:4px 0"><input type="checkbox" id="optEntry" ${yearDoc.entryOpen ? "checked" : ""}> Resultate für alle Mitglieder offen – jede Änderung wird mit Name protokolliert (Reiter «Änderungen»)</label>
         <div class="group-title" style="margin-top:18px"><span>Abschliessen</span></div>
@@ -472,8 +492,15 @@ function viewYears(c){
   if(inf) inf.onsubmit = async e => {
     e.preventDefault();
     document.activeElement && document.activeElement.blur();
-    await D.merge(`spieltag/${YEAR}`, { date:inf.date.value || null, place:inf.place.value.trim() });
-    note("iMsg", "Gespeichert.");
+    const until = inf.until.value || (inf.date.value ? MST.isoMinusDays(inf.date.value, MST.SIGNUP_DAYS_BEFORE) : null);
+    await D.merge(`spieltag/${YEAR}`, { date:inf.date.value || null, place:inf.place.value.trim(), signupUntil:until });
+    note("iMsg", until ? `Gespeichert. Anmeldeschluss: ${MST.fmtDay(until)}.` : "Gespeichert.");
+  };
+  // neues Datum → Anmeldeschluss automatisch 14 Tage davor (solange er noch auf dem alten Standard steht)
+  if(inf) inf.date.onchange = () => {
+    const old = inf.date.defaultValue, auto = old ? MST.isoMinusDays(old, MST.SIGNUP_DAYS_BEFORE) : "";
+    if(inf.date.value && (!inf.until.value || inf.until.value === auto)) inf.until.value = MST.isoMinusDays(inf.date.value, MST.SIGNUP_DAYS_BEFORE);
+    inf.date.defaultValue = inf.date.value;
   };
   const cl = document.getElementById("closeYear");
   if(cl) cl.onclick = closeYear;

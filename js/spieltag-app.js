@@ -245,13 +245,15 @@ function topCards(ov){
   if(viewer.memberId && yearDoc.signupOpen){
     const inList = pid && participants().includes(pid);
     const s = signups[viewer.memberId];
+    const open = MST.signupOpenNow(yearDoc), until = MST.signupUntil(yearDoc);
     html += `<div class="card"><h3>Anmeldung ${esc(YEAR)}</h3>
-      <div class="big-next">${inList ? '<span class="ok">✓ Du bist dabei</span>' : s && s.status === "nein" ? "Du hast abgesagt" : "Bist du dabei?"}</div>
+      <div class="big-next">${inList ? '<span class="ok">✓ Du bist dabei</span>' : s && s.status === "nein" ? "Du hast abgesagt" : open ? "Bist du dabei?" : "Anmeldung geschlossen"}</div>
       <div class="small muted">${yearDoc.date ? esc(ST.fmtDate(yearDoc.date)) : "Datum folgt"}${yearDoc.place ? " · " + esc(yearDoc.place) : ""}</div>
-      <div class="btn-row">
+      ${until ? `<div class="small muted">Anmeldeschluss: ${esc(MST.fmtDay(until))}${open ? "" : " – Änderungen nur noch über Jan"}</div>` : ""}
+      ${open ? `<div class="btn-row">
         ${inList ? "" : '<button class="btn-primary" id="signYes">Ich bin dabei</button>'}
         ${inList ? '<button class="btn-ghost" id="signNo">Ich kann doch nicht</button>' : s && s.status === "nein" ? "" : '<button class="btn-ghost" id="signNo">Ich kann nicht</button>'}
-      </div></div>`;
+      </div>` : ""}</div>`;
   }
   // Mein Spieltag
   if(pid && participants().includes(pid) && games().length){

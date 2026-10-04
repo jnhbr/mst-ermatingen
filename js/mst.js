@@ -45,6 +45,28 @@ const MST = {
   },
   nameOf(id){ return (this.directory[id] && this.directory[id].short) || id; },
 
+  /* Spieltag-Anmeldung: Anmeldeschluss spieltag/<jahr>.signupUntil ("JJJJ-MM-TT", Standard 14 Tage vor dem
+     Datum; der Tag zählt noch). Die Firestore-Regeln prüfen denselben Schluss. */
+  SIGNUP_DAYS_BEFORE: 14,
+  signupUntil(y){
+    if(!y) return null;
+    if(y.signupUntil) return y.signupUntil;
+    return y.date ? this.isoMinusDays(y.date, this.SIGNUP_DAYS_BEFORE) : null;
+  },
+  isoMinusDays(iso, n){
+    const d = new Date(iso + "T12:00:00");
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  },
+  signupOpenNow(y){
+    if(!y || !y.signupOpen || y.closed) return false;
+    const u = this.signupUntil(y);
+    return !u || new Date() <= new Date(u + "T23:59:59");
+  },
+  fmtDay(iso){
+    return iso ? new Date(iso + "T12:00:00").toLocaleDateString("de-CH", { weekday:"short", day:"numeric", month:"long", year:"numeric" }) : "";
+  },
+
   /* Eintrag ins Änderungsprotokoll (lesen kann nur der Admin). */
   log(area, text, extra){
     return db.collection("log").add({ at:Date.now(), by:this.user.id, byName:this.user.name, area, text, ...(extra || {}) })

@@ -7,7 +7,7 @@
    ============================================================ */
 const KAL = {
   /* URL der Apps-Script-Web-App (Bereitstellen → Web-App → …/exec) */
-  API: "",
+  API: "https://script.google.com/macros/s/AKfycbx0X4sktOkDG8HpoWK5UOU3zOMSomAb547kcJH_byOpAK9uRqO2XJb_cNKe5phzl679/exec",
   TZ: "Europe/Zurich",
   CACHE: "mst-kalender-v1",
 

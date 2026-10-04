@@ -14,7 +14,15 @@ das den Kalender besitzt. Kein Firebase-Blaze-Plan, keine Kosten.
 5. **Bereitstellen → Neue Bereitstellung** → Typ «Web-App», Ausführen als **Ich**,
    Zugriff **Jeder** → Bereitstellen. Die URL (endet auf `/exec`) in `js/kalender.js` bei `API:` eintragen.
 
-## Später Code ändern
+## Stand (04.10.2026)
+Eingerichtet per clasp unter jnhbr97@gmail.com: Projekt «MST Kalender» (Script-ID in `.clasp.json`),
+Bereitstellung `AKfycbx0X4sktOkDG8HpoWK5UOU3zOMSomAb547kcJH_byOpAK9uRqO2XJb_cNKe5phzl679` = URL in `js/kalender.js`.
+
+Code ändern per Terminal (in diesem Ordner, URL bleibt gleich):
+`npx @google/clasp push --force && npx @google/clasp update-deployment AKfycbx0X4sktOkDG8HpoWK5UOU3zOMSomAb547kcJH_byOpAK9uRqO2XJb_cNKe5phzl679`
+(vorher einmal `npx @google/clasp login`, falls abgemeldet). Neue Berechtigungen → im Editor einmal `einrichten` ausführen.
+
+## Später Code ändern (im Browser)
 Code ersetzen → **Bereitstellen → Bereitstellungen verwalten** → Stift → Version «Neue Version» →
 Bereitstellen. So bleibt die URL gleich (eine *neue* Bereitstellung gäbe eine neue URL).
 

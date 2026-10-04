@@ -114,8 +114,8 @@ service cloud.firestore {
     function signupIsOpen(year) {
       let y = get(/databases/$(database)/documents/spieltag/$(year)).data;
       let until = y.get('signupUntil', null);
-      // Schalter signupOpen; nie gesetzt = offen, sobald ein Anmeldeschluss gespeichert ist
-      return y.get('signupOpen', until != null) == true
+      // Schalter signupOpen (nie gesetzt = offen), Spieltag nicht abgeschlossen
+      return y.get('signupOpen', true) == true && y.get('closed', false) == false
         && (until == null || request.time < signupDeadline(until));
     }
     match /spieltag/{year}/signups/{mid} {

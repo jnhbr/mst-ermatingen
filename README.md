@@ -67,11 +67,12 @@ Bis 2.10.2026 lief Padel auf Netlify (mst-padel.netlify.app, Repo `MST-Ermatinge
 - TV-Ansicht: `spieltag/#tv` (Rangliste, Als Nächstes, Tagesablauf, Bierkapitän falls eingeloggt; QR-Code).
 - Selbst-Anmeldungen liegen in `spieltag/<jahr>/signups/<memberId>`; Teilnehmende = Liste + Anmeldungen.
   Anmelden geht auch mit einem Tipp direkt auf der Startseite (Balken «Anmelden für <Jahr>» in der Spieltag-Kachel).
-  Das Datum kommt aus dem Google Kalender (Termin «Minispieltag <jahr>», `KAL.spieltagDay()`): sobald Jan als Admin die
-  Startseite oder die Organisation öffnet, wird es nach `spieltag/<jahr>.date` übernommen (`MST.syncSpieltagDate()`).
+  Das Datum kommt aus dem Google Kalender (Termin «Minispieltag <jahr>», `KAL.spieltagDay()`): alle Seiten zeigen es
+  sofort (`MST.withDate()`); öffnet Jan als Admin die Startseite oder die Organisation, wird es auch nach
+  `spieltag/<jahr>.date`/`signupUntil` gespeichert (`MST.syncSpieltagDate()`) – erst dann prüfen die Regeln den Schluss.
   Anmeldeschluss `spieltag/<jahr>.signupUntil` ("JJJJ-MM-TT", der Tag zählt noch) = automatisch 14 Tage davor (in der
-  Organisation änderbar); die Firestore-Regeln sperren danach. Anmeldung offen = Schalter `signupOpen`, nie gesetzt =
-  offen, sobald ein Anmeldeschluss gespeichert ist.
+  Organisation änderbar); die Firestore-Regeln sperren danach. Anmeldung offen = Schalter `signupOpen` (nie gesetzt =
+  offen), solange der Spieltag nicht abgeschlossen ist.
   Solange die Anmeldung läuft, zählen Mitglieder NUR mit `signups/<memberId>.status == "ja"` (selbst bestätigt oder von Jan
   in der Organisation angehakt → `by:"admin"`); eine aus dem Vorjahr übernommene Liste meldet niemanden an
   (`ST.effectiveParticipants`). `participants` enthält dann nur noch Gäste.

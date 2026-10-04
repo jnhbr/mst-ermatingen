@@ -58,9 +58,10 @@ const MST = {
     d.setDate(d.getDate() - n);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   },
-  /* offen = Schalter in der Organisation; solange der nie gesetzt wurde: offen, sobald ein Anmeldeschluss gespeichert ist
-     (gleich wie in firestore.rules) */
-  signupFlag(y){ return !!y && (y.signupOpen != null ? !!y.signupOpen : !!y.signupUntil); },
+  /* offen = Schalter in der Organisation (nie gesetzt = offen), nicht abgeschlossen; gleich wie in firestore.rules */
+  signupFlag(y){ return !!y && !y.closed && (y.signupOpen != null ? !!y.signupOpen : true); },
+  /* Spieltag mit dem Datum aus dem Google Kalender (falls dort eingetragen) */
+  withDate(y, day){ return y && day && y.date !== day ? Object.assign({}, y, { date:day }) : y; },
   signupOpenNow(y){
     if(!this.signupFlag(y) || y.closed) return false;
     const u = this.signupUntil(y);

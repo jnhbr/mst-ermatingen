@@ -80,11 +80,18 @@ D.getCollection("spieltagHistory").then(docs => {
   render();
 }).catch(e => console.warn("Historie", e));
 
+/* Datum aus dem Google Kalender (Termin «Minispieltag <jahr>»), falls dort eingetragen */
+let calEvents = null;
+const calDay = y => calEvents && y ? KAL.spieltagDay(calEvents, y) : null;
+if(KAL.ready()){
+  const c = KAL.cached(); if(c) calEvents = c.events;
+  KAL.load(false).then(ev => { calEvents = ev; if(yearDoc){ yearDoc = MST.withDate(yearDoc, calDay(YEAR)); render(); } }).catch(e => console.warn("Kalender", e));
+}
 function openYear(y){
   unsubYear.forEach(f => f()); unsubYear = [];
   YEAR = y; yearDoc = undefined; gameData = {}; signups = {};
   if(!y){ yearDoc = null; render(); return; }
-  unsubYear.push(D.watchDoc(`spieltag/${y}`, d => { yearDoc = d; watchBeer(); render(); }));
+  unsubYear.push(D.watchDoc(`spieltag/${y}`, d => { yearDoc = MST.withDate(d, calDay(y)); watchBeer(); render(); }));
   unsubYear.push(D.watchCollection(`spieltag/${y}/games`, docs => {
     gameData = {};
     docs.forEach(d => {

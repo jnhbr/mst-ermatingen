@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/mst.css?v=202610041600">
+<link rel="stylesheet" href="css/mst.css?v=202610041700">
 <style>
   .home-hero{position:relative; display:flex; align-items:center; gap:22px; padding:34px 4px 26px; overflow:hidden;}
   .home-hero .logo{width:96px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
@@ -168,9 +168,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="js/mst.js?v=202610041600" data-base=""></script>
-<script src="js/kalender.js?v=202610041600"></script>
-<script src="js/fotos.js?v=202610041600"></script>
+<script src="js/mst.js?v=202610041700" data-base=""></script>
+<script src="js/kalender.js?v=202610041700"></script>
+<script src="js/fotos.js?v=202610041700"></script>
 <script>
 MST.start((user) => {
   document.getElementById("greeting").textContent = `Hoi ${user.short}!`;
@@ -208,6 +208,7 @@ async function showSignup(){
     const set = await db.collection("spieltagMeta").doc("settings").get();
     s.year = set.exists ? set.data().currentYear : null;
     if(!s.year) return;
+    loadCalDay();
     db.collection("spieltag").doc(s.year).onSnapshot(d => { s.yd = d.exists ? d.data() : null; drawSignup(); syncFromCalendar(); }, e => console.warn("Spieltag", e));
     db.collection("spieltag").doc(s.year).collection("signups").doc(me)
       .onSnapshot(d => { s.signup = d.exists ? d.data() : null; drawSignup(); }, e => console.warn("Anmeldung", e));
@@ -216,20 +217,25 @@ async function showSignup(){
     drawSignup();
   }catch(e){ console.warn("Anmeldung", e); }
 }
-/* Admin: Datum kommt aus dem Google Kalender (Termin «Minispieltag <jahr>») */
-let calDay;
+/* Datum kommt aus dem Google Kalender (Termin «Minispieltag <jahr>») – für alle sofort sichtbar;
+   öffnet der Admin die Seite, wird es auch in Firestore gespeichert (dann prüfen die Regeln den Anmeldeschluss). */
+let calDay = null;
+async function loadCalDay(){
+  if(!KAL.ready()) return;
+  const c = KAL.cached();
+  if(c) calDay = KAL.spieltagDay(c.events, signupState.year);
+  try{ calDay = KAL.spieltagDay(await KAL.load(false), signupState.year); }catch(e){ console.warn("Kalender", e); }
+  drawSignup(); syncFromCalendar();
+}
 async function syncFromCalendar(){
   const s = signupState;
-  if(!MST.user.admin || !s.yd || !KAL.ready()) return;
-  try{
-    if(calDay === undefined){ calDay = null; calDay = KAL.spieltagDay(await KAL.load(false), s.year); }
-    await MST.syncSpieltagDate(s.year, s.yd, calDay);
-  }catch(e){ console.warn("Kalender → Spieltag", e); }
+  if(!MST.user.admin || !s.yd || !calDay) return;
+  try{ await MST.syncSpieltagDate(s.year, s.yd, calDay); }catch(e){ console.warn("Kalender → Spieltag", e); }
 }
 // angemeldet = selbst bestätigt (oder von Jan eingetragen) – eine übernommene Vorjahresliste zählt nicht
 function signedUp(){ return !!(signupState.signup && signupState.signup.status === "ja"); }
 function drawSignup(){
-  const s = signupState, el = document.getElementById("signupBar");
+  const s = Object.assign({}, signupState, { yd:MST.withDate(signupState.yd, calDay) }), el = document.getElementById("signupBar");
   if(!s.yd || s.yd.closed){ el.hidden = true; return; }
   const open = MST.signupOpenNow(s.yd), until = MST.signupUntil(s.yd), inList = signedUp();
   const day = s.yd.date ? MST.fmtDay(s.yd.date) : "Datum folgt";

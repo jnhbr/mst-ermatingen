@@ -91,18 +91,20 @@ const SpieltagData = (() => {
     return d.exists ? d.data() : null;
   }
 
-  /* ---------- Schreiben ---------- */
+  /* ---------- Schreiben ----------
+     Über MST.quick: ohne Empfang erscheint die Änderung sofort und geht nach, sobald wieder Netz da ist
+     (sonst würde die Seite warten, bis der Server antwortet). */
   async function set(path, data){
     if(test){ mem[path] = clone(data); emit(path); return; }
-    await db.doc(path).set(data);
+    await MST.quick(db.doc(path).set(data));
   }
   async function merge(path, data){
     if(test){ mem[path] = deepMerge(mem[path] || {}, data); emit(path); return; }
-    await db.doc(path).set(data, { merge:true });
+    await MST.quick(db.doc(path).set(data, { merge:true }));
   }
   async function remove(path){
     if(test){ delete mem[path]; emit(path); return; }
-    await db.doc(path).delete();
+    await MST.quick(db.doc(path).delete());
   }
   async function batch(ops){
     if(test){ for(const o of ops){ if(o.op === "set") await set(o.path, o.data); else if(o.op === "merge") await merge(o.path, o.data); else await remove(o.path); } return; }
@@ -113,7 +115,7 @@ const SpieltagData = (() => {
       else if(o.op === "merge") b.set(ref, o.data, { merge:true });
       else b.delete(ref);
     });
-    await b.commit();
+    await MST.quick(b.commit());
   }
 
   return { test, watchDoc, watchCollection, getCollection, getDoc, set, merge, remove, batch };

@@ -2,8 +2,19 @@
 
 Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root)
 
-- `index.html` – Startseite mit Kacheln + für den Admin: Mitglieder (Alias, Eintritt, Austritt → «Ehemalige», endgültig löschen),
+- `index.html` – Startseite mit Kacheln + für den Admin: «Vereinsjahr & Sicherung» (Knopf «Neues Vereinsjahr …», Stand der
+  wöchentlichen Sicherung), Mitglieder (Alias, Eintritt, Austritt → «Ehemalige», endgültig löschen),
   Vorstand-Logins (Rollen) und das eingeklappte Änderungsprotokoll
+- `ich/` – **Mein MST** (nur mit Login): nächste Termine mit Zu-/Absage, Spieltag (Anmeldung, Teilnahmen, bester Rang,
+  bester Partner, Angstgegner), Jahresbeitrag (Betrag/Status/Twint – gleiche Rechnung wie `feeOf` in `js/gv-app.js`),
+  Afterworkbar-Einsätze, Padel (nächster Termin, eigener Status) und eigene GV-Vorschläge. Liest nur, schreibt nur Zusagen.
+- `js/jahreswechsel.js` – Dialog «Neues Vereinsjahr» (Admin, Startseite): legt für das Vereinsjahr bis zur GV <jahr> an,
+  was fehlt – GV + Finanzjahr (Schlussbestand wie «Neue GV anlegen»), Spieltag (Spiele vom Vorjahr), Afterworkbar
+  (wie «Neues Jahr anlegen»), Padel-Saison (Termine +364 Tage, Fixe ohne Ausgetretene) – und macht sie aktuell.
+  Zieljahr = letzte schon stattgefundene GV + 1 (änderbar). Bestehendes bleibt unangetastet.
+- `sw.js` – Service Worker (nur https): hält Seiten, Stile, Skripte, Firebase-Bibliothek und Schriften auf dem Gerät,
+  damit die Seite im Funkloch öffnet (Seiten: zuerst Netz, nach 4 s die gespeicherte Fassung). Holt alle 6 Stunden im
+  Hintergrund alle Bereiche, alte `?v=` fliegen raus. Neue Seite → in `PAGES` eintragen.
 - `gv/` + `js/gv-app.js` – GV: Traktanden (Platzhalter wie {vermoegen}, Vorschläge der Mitglieder), Mitglieder (Mutationen,
   Vorstand), Protokoll des Aktuars, Jahresrückblick; druckt Übersicht (inkl. Finanzseiten) und Protokoll im Stil der
   GV-Übersicht 2026 (Calibri, A4). Alte PDFs im Reiter «PDF».
@@ -32,13 +43,32 @@ Live: https://jnhbr.github.io/mst-ermatingen/ (GitHub Pages, Branch `main`, Root
   Apps-Script-Web-App `apps-script/kalender/` (Einrichtung dort im README, URL in `js/kalender.js` → `API`).
   Eintragen/ändern/löschen nur Vorstand (Firebase-Token wird im Skript geprüft); Serientermine nur in Google.
   Abo-Feed = `<API>?format=ics`. Die Startseite zeigt die nächsten 3 Termine.
+  **Zu-/Absagen**: eingeloggte Mitglieder tippen im Termin «Bin dabei / Vielleicht / Kann nicht» (+ Bemerkung) und sehen,
+  wer kommt. Firestore `rsvp/<termin>` = { title, day, <memberId>:{ s, at, n } }, jedes Mitglied ändert nur sein Feld.
+  Nicht bei Spieltag (eigene Anmeldung) und Padel (eigene Verfügbarkeit). Login auf der Kalender-Seite freiwillig
+  (Mitglieder zum Zusagen, Vorstand zum Eintragen); `kalender/?termin=<schlüssel>` öffnet einen Termin direkt.
 - `fotos/` + `js/fotos.js` – Fotos in Ordnern nach Jahr, nur mit Login. Liegen im Google Drive «MST Fotos» (Jans Konto),
   Zugriff über die Apps-Script-Web-App `apps-script/fotos/` (Einrichtung und Rechte im README dort). Alle Mitglieder laden hoch,
   Ordner verwaltet der Vorstand.
-- `js/mst.js` – Firebase-Init (Projekt `minispieltag`), Login und die Instagram-Fusszeile (@minispieltag) auf allen Seiten
+- `js/mst.js` – Firebase-Init (Projekt `minispieltag`), Login und die Instagram-Fusszeile (@minispieltag) auf allen Seiten;
+  dazu **Offline**: `enablePersistence` (Firestore behält Gelesenes und schickt Änderungen nach), `MST.quick(promise)`
+  (wartet höchstens 2,5 s auf den Server – sonst bliebe die Seite ohne Netz hängen; spätere Ablehnung → Hinweis oben),
+  `MST.toast()`, Offline-Balken unten und die Registrierung von `sw.js`
 - `css/mst.css` – gemeinsames Design (Schwarz/Gelb aus dem Wappen)
 - `firestore.rules` – Regeln für das ganze Firebase-Projekt (auch die Spieltag-Seite!),
   deployen mit `firebase deploy --only firestore:rules`
+
+- `apps-script/backup/` – **Sicherung**: Apps Script «MST Backup» legt jeden Sonntag ~03:00 alle Firestore-Daten als ZIP
+  in den Drive-Ordner «MST Backup» (26 Stück bleiben) und schreibt `backupStatus/last` (Anzeige auf der Startseite).
+  Einrichtung und Wiederherstellen im README dort.
+
+## Offline am Spieltag
+Wer die Seite einmal mit Netz offen hatte, kann sie im Funkloch wieder öffnen (Service Worker) und sieht den letzten
+Stand (Firestore-Speicher auf dem Gerät). Resultate, Biere usw. lassen sich weiter eintragen; sie erscheinen sofort und
+gehen an den Server, sobald wieder Empfang da ist (Balken unten: «Offline …» → «✓ Alles gespeichert»). Lehnt der Server
+eine nachgeschickte Änderung ab (z. B. Rechte), erscheint oben ein roter Hinweis. Tipp: am Morgen vom Spieltag alle
+Helfer die Spieltag-Seite einmal mit Netz öffnen lassen. Lokal testen: `private/test-harness.html?seite=ich|kalender|index|spieltag&als=m14|admin|gast`
+(erfundene Daten, kein Firebase).
 
 ## Login & Rollen
 - Mitglieder: Vereinsnummer + Vorname (erstes Wort, Gross/Klein egal). Firestore `members/<sha256>` → Sitzung `sessions/<uid>`.

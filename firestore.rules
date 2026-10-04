@@ -233,6 +233,26 @@ service cloud.firestore {
       allow delete: if isMember() && resource.data.by == myId() && resource.data.status == 'neu';
     }
 
+    // ---------- Kalender: Zu-/Absagen ----------
+    // rsvp/<termin> = { title, day, <memberId>: { s:"ja"|"vielleicht"|"nein", at, n? } }
+    // Die Termine selbst liegen im Google Kalender; hier nur, wer kommt. Jedes Mitglied ändert nur sein Feld.
+    function rsvpAnswerOk(d) {
+      let a = d.get(myId(), null);
+      return a == null || (a is map && a.keys().hasOnly(['s', 'at', 'n'])
+        && a.s in ['ja', 'vielleicht', 'nein']
+        && (!('n' in a) || (a.n is string && a.n.size() <= 100)));
+    }
+    match /rsvp/{key} {
+      allow read: if isMember();
+      allow delete: if isAdmin();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly([myId(), 'title', 'day'])
+        && rsvpAnswerOk(request.resource.data);
+      allow update: if isMember()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([myId(), 'title', 'day'])
+        && rsvpAnswerOk(request.resource.data);
+    }
+
     // ---------- Kontakte (Handynummern für Twint-Anforderungen) – nur Vorstand ----------
     match /contacts/{id} {
       allow read, write: if isVorstand();
@@ -254,6 +274,17 @@ service cloud.firestore {
     match /finance/{year}/{list}/{id} {
       allow read: if isVorstand() || (isMember() && financeShared(year));
       allow write: if isKassier();
+    }
+    // Den eigenen Jahresbeitrag (Status) sieht jedes Mitglied immer – für «Mein MST»
+    match /finance/{year}/fees/{mid} {
+      allow get: if isMember() && mid == myId();
+    }
+
+    // ---------- Sicherung (Apps Script «MST Backup» schreibt mit Jans Google-Konto, an den Regeln vorbei) ----------
+    // backupStatus/last = { at, docs, bytes, file, url, ok, error } – zeigt der Admin auf der Startseite an
+    match /backupStatus/{doc} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

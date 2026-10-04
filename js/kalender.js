@@ -109,5 +109,52 @@ const KAL = {
   linkify(s){
     return esc(s).replace(/https?:\/\/[^\s<>"]+/g, u => `<a href="${u}" target="_blank" rel="noopener">${u.length > 60 ? u.slice(0, 57) + "…" : u}</a>`).replace(/\n/g, "<br>");
   },
-  mapsUrl(loc){ return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(loc); }
+  mapsUrl(loc){ return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(loc); },
+
+  /* ---------- Zu-/Absagen (Firestore, nur Mitglieder) ----------
+     rsvp/<id> = { title, day, <memberId>: { s:"ja"|"vielleicht"|"nein", at, n? } }
+     id = Termin-Schlüssel (bei Serien mit Datum). Jedes Mitglied ändert nur sein eigenes Feld (firestore.rules).
+     Spieltag (eigene Anmeldung) und Padel (eigene Verfügbarkeit) haben keine Zusage im Kalender. */
+  RSVP: { ja:{ label:"Bin dabei", short:"dabei", icon:"✓" }, vielleicht:{ label:"Vielleicht", short:"vielleicht", icon:"?" }, nein:{ label:"Kann nicht", short:"nein", icon:"✗" } },
+  rsvpId(ev){ return String(ev.key || ev.id).replace(/[^A-Za-z0-9@._|:+-]/g, "_").slice(0, 400); },
+  rsvpAllowed(ev){ return !this.isPast(ev) && !/^(spieltag|padel)\//.test(this.kind(ev).link); },
+  rsvps: {},            // id -> Dokument
+  _rsvpOff: null,
+  /* live mitlesen (nur eingeloggt); cb() bei jeder Änderung */
+  watchRsvps(cb){
+    if(this._rsvpOff) this._rsvpOff();
+    this._rsvpOff = db.collection("rsvp").onSnapshot(s => {
+      this.rsvps = {};
+      s.forEach(d => { this.rsvps[d.id] = d.data(); });
+      cb && cb();
+    }, e => console.warn("Zusagen", e));
+  },
+  myRsvp(ev, memberId){ const d = this.rsvps[this.rsvpId(ev)]; return d && memberId && d[memberId] ? d[memberId] : null; },
+  /* { ja:[{id, n, at}], vielleicht:[…], nein:[…] } */
+  rsvpList(ev){
+    const d = this.rsvps[this.rsvpId(ev)] || {}, out = { ja:[], vielleicht:[], nein:[] };
+    Object.entries(d).forEach(([k, v]) => { if(/^m\d+$/.test(k) && v && out[v.s]) out[v.s].push({ id:k, n:v.n || "", at:v.at || 0 }); });
+    Object.values(out).forEach(l => l.sort((a, b) => a.at - b.at));
+    return out;
+  },
+  /* s = "ja" | "vielleicht" | "nein" | null (Antwort zurückziehen) */
+  setRsvp(ev, memberId, s, note){
+    const ref = db.collection("rsvp").doc(this.rsvpId(ev));
+    const val = s ? Object.assign({ s, at:Date.now() }, note ? { n:String(note).slice(0, 100) } : {}) : firebase.firestore.FieldValue.delete();
+    return MST.quick(ref.set({ title:String(ev.title).slice(0, 120), day:this.firstDay(ev), [memberId]:val }, { merge:true }));
+  },
+  /* kleines Abzeichen für Listen: eigene Antwort + Anzahl Zusagen */
+  rsvpBadge(ev, memberId){
+    if(!this.rsvpAllowed(ev)) return "";
+    const mine = this.myRsvp(ev, memberId), n = this.rsvpList(ev).ja.length;
+    const me = mine ? `<span class="rsvp-badge ${mine.s}">${this.RSVP[mine.s].icon} ${this.RSVP[mine.s].short}</span>`
+      : memberId ? '<span class="rsvp-badge open">zusagen?</span>' : "";
+    return me + (n ? `<span class="rsvp-count">${n} dabei</span>` : "");
+  },
+  /* Knöpfe «Bin dabei / Vielleicht / Kann nicht» (data-rsvp="<s>") */
+  rsvpButtons(ev, memberId){
+    const mine = this.myRsvp(ev, memberId);
+    return `<div class="rsvp-btns">${Object.entries(this.RSVP).map(([k, r]) =>
+      `<button type="button" class="rsvp-btn ${k} ${mine && mine.s === k ? "on" : ""}" data-rsvp="${k}">${r.icon} ${r.label}</button>`).join("")}</div>`;
+  }
 };

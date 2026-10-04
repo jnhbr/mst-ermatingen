@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/mst.css?v=202610041700">
+<link rel="stylesheet" href="css/mst.css?v=202610041800">
 <style>
   .home-hero{position:relative; display:flex; align-items:center; gap:22px; padding:34px 4px 26px; overflow:hidden;}
   .home-hero .logo{width:96px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
@@ -80,6 +80,20 @@
   .signup-done .link-btn{font-size:12px;}
   .signup-note{font-size:12px; color:var(--muted);}
   .signup-note b{color:var(--white); font-weight:600;}
+
+  /* Admin: Vereinsjahr & Sicherung */
+  .adm-row{display:flex; gap:14px; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); flex-wrap:wrap;}
+  .adm-row:last-child{border-bottom:none; padding-bottom:0;}
+  .adm-row p{margin:2px 0 0; font-size:12.5px; color:var(--muted);}
+  .adm-row .ok{color:var(--green);} .adm-row .bad{color:var(--red);}
+  .jw-dlg{width:min(560px, calc(100vw - 32px));}
+  .jw-year{max-width:260px;}
+  .jw-steps{display:flex; flex-direction:column; gap:8px;}
+  .jw-step{display:grid !important; grid-template-columns:18px 28px 1fr; gap:10px; align-items:start; padding:10px 12px; border:1px solid var(--line-strong); border-radius:var(--radius-sm); text-transform:none !important; letter-spacing:0 !important; font-size:14px !important; color:var(--white) !important; cursor:pointer;}
+  .jw-step input{width:16px; height:16px; margin-top:3px; accent-color:var(--yellow);}
+  .jw-step.done{opacity:.6; cursor:default;}
+  .jw-ic{font-size:20px; line-height:1.2;}
+  .jw-what{display:block; font-size:12.5px; color:var(--muted); margin-top:2px; font-weight:400;}
 </style>
 </head>
 <body>
@@ -102,6 +116,12 @@
   <div class="next-events" id="nextEvents" hidden></div>
 
   <div class="tiles">
+    <a class="tile active tile-me" href="ich/">
+      <span class="tile-go">Öffnen →</span>
+      <span class="tile-icon">👤</span>
+      <span class="tile-title">Mein MST</span>
+      <span class="tile-text" id="meText">Deine Termine und Zusagen, Spieltage, Padel, Afterworkbar-Einsätze und dein Jahresbeitrag auf einen Blick.</span>
+    </a>
     <a class="tile active" href="kalender/" id="kalTile" hidden>
       <span class="tile-go">Öffnen →</span>
       <span class="tile-icon">📅</span>
@@ -168,9 +188,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="js/mst.js?v=202610041700" data-base=""></script>
-<script src="js/kalender.js?v=202610041700"></script>
-<script src="js/fotos.js?v=202610041700"></script>
+<script src="js/mst.js?v=202610041800" data-base=""></script>
+<script src="js/kalender.js?v=202610041800"></script>
+<script src="js/fotos.js?v=202610041800"></script>
+<script src="js/jahreswechsel.js?v=202610041800"></script>
 <script>
 MST.start((user) => {
   document.getElementById("greeting").textContent = `Hoi ${user.short}!`;
@@ -186,14 +207,22 @@ async function showNextEvents(){
   if(!KAL.ready()) return;   // Kachel erst zeigen, wenn die Google-Brücke eingerichtet ist
   document.getElementById("kalTile").hidden = false;
   const el = document.getElementById("nextEvents");
-  const draw = list => {
+  let list = [];
+  const draw = l => {
+    if(l) list = l;
     const next = list.filter(e => !KAL.isPast(e)).slice(0, 3);
     el.hidden = !next.length;
-    el.innerHTML = next.map(e => `<a class="next-ev" href="kalender/">
+    el.innerHTML = next.map(e => `<a class="next-ev" href="kalender/?termin=${encodeURIComponent(e.key)}">
       <span style="font-size:22px">${KAL.kind(e).icon}</span>
-      <span><span class="ne-when">${esc(KAL.countdown(e))}</span><br><span class="ne-title">${esc(e.title)}</span><br><span class="ne-sub">${esc(KAL.when(e))}</span></span>
+      <span><span class="ne-when">${esc(KAL.countdown(e))}</span> ${KAL.rsvpBadge(e, MST.user.id)}<br><span class="ne-title">${esc(e.title)}</span><br><span class="ne-sub">${esc(KAL.when(e))}</span></span>
     </a>`).join("");
+    // Kachel «Mein MST»: offene Antworten zählen
+    const open = list.filter(e => KAL.rsvpAllowed(e) && !KAL.myRsvp(e, MST.user.id)).length;
+    document.getElementById("meText").innerHTML = open
+      ? `<b style="color:var(--yellow)">${open} Termin${open === 1 ? "" : "e"} ohne deine Antwort</b> – dazu Spieltage, Padel, Einsätze und Jahresbeitrag.`
+      : "Deine Termine und Zusagen, Spieltage, Padel, Afterworkbar-Einsätze und dein Jahresbeitrag auf einen Blick.";
   };
+  KAL.watchRsvps(() => draw());
   const c = KAL.cached();
   if(c) draw(c.events);
   try{ draw(await KAL.load(false)); }catch(e){ console.warn("Kalender", e); }
@@ -292,6 +321,16 @@ async function renderAdmin(){
   const memberOpts = active.map(([id, m]) => `<option value="${esc(id)}">${esc(id.slice(1))} ${esc(m.name)}</option>`).join("");
   area.innerHTML = `
     <div class="card">
+      <h3>Vereinsjahr & Sicherung</h3>
+      <div class="adm-row">
+        <div><b>Neues Vereinsjahr</b><p>Nach der GV: GV + Finanzjahr, Spieltag, Afterworkbar und Padel-Saison in einem Schritt anlegen.</p></div>
+        <button class="btn-primary" id="jwBtn" type="button">Neues Vereinsjahr …</button>
+      </div>
+      <div class="adm-row">
+        <div><b>Sicherung</b><p id="backupInfo">lade …</p></div>
+      </div>
+    </div>
+    <div class="card">
       <h3>Mitglieder verwalten</h3>
       <p class="rule-note" style="margin:0 0 14px;">Nummer + Vorname ergeben das Login. Gleiche Nummer nochmals speichern überschreibt den Eintrag. Eintritt und Austritt erscheinen automatisch in der GV (Mutationen, Jahresbeitrag).</p>
       <form class="member-form" id="memberForm">
@@ -329,6 +368,8 @@ async function renderAdmin(){
       <p class="rule-note" style="margin:10px 0 12px;">Wer hat wann was eingetragen, geändert oder gelöscht (neueste zuerst, letzte 300). Sieht nur der Admin.</p>
       <div id="logList" class="log-list"><p class="form-msg">lade …</p></div>
     </details>`;
+  document.getElementById("jwBtn").onclick = () => JW.open();
+  showBackup();
   area.querySelector(".log-card").addEventListener("toggle", e => { if(e.target.open) loadLog(); }, { once:true });
   document.getElementById("memberForm").onsubmit = saveMember;
   document.getElementById("roleForm").onsubmit = async (e) => {
@@ -365,6 +406,19 @@ async function renderAdmin(){
     MST.log("verein", `${m.name} (${id.slice(1)}) endgültig gelöscht`);
     await MST.loadDirectory(); renderAdmin();
   });
+}
+/* Stand der wöchentlichen Sicherung (Apps Script «MST Backup» schreibt backupStatus/last) */
+async function showBackup(){
+  const el = document.getElementById("backupInfo");
+  try{
+    const d = await db.collection("backupStatus").doc("last").get();
+    if(!d.exists){ el.innerHTML = 'Noch keine Sicherung – das Skript «MST Backup» ist noch nicht eingerichtet (siehe <code>apps-script/backup/README.md</code>).'; return; }
+    const b = d.data(), at = new Date(b.at), age = (Date.now() - b.at) / 864e5;
+    const when = at.toLocaleString("de-CH", { weekday:"short", day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
+    el.innerHTML = b.ok
+      ? `<span class="${age > 8 ? "bad" : "ok"}">${age > 8 ? "⚠︎" : "✓"} Letzte Sicherung ${esc(when)}</span> · ${(b.docs || 0).toLocaleString("de-CH")} Dokumente, ${Math.round((b.bytes || 0) / 1024).toLocaleString("de-CH")} KB${b.url ? ` · <a href="${esc(b.url)}" target="_blank" rel="noopener">Ordner im Drive</a>` : ""}${age > 8 ? " – seit über einer Woche keine neue, bitte Skript prüfen." : ""}`
+      : `<span class="bad">✗ Sicherung fehlgeschlagen (${esc(when)}): ${esc(b.error || "unbekannt")}</span>`;
+  }catch(e){ console.warn("Sicherung", e); el.textContent = "Stand der Sicherung nicht lesbar."; }
 }
 async function saveMember(e){
   e.preventDefault();

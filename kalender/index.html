@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/mst.css?v=202610041700">
+<link rel="stylesheet" href="../css/mst.css?v=202610041800">
 <style>
   .muted{color:var(--muted);}
   .notice{border:1px solid var(--yellow); background:var(--yellow-soft); border-radius:var(--radius-sm); padding:10px 12px; font-size:13px; margin:0 4px 14px;}
@@ -102,6 +102,12 @@
   .dlg-msg{font-size:12.5px; color:var(--red); min-height:1.2em; margin:0;}
   .check{flex-direction:row; align-items:center; gap:8px; text-transform:none; letter-spacing:0; font-size:13.5px; color:var(--white); cursor:pointer;}
   .check input{width:16px; height:16px; accent-color:var(--yellow); padding:0;}
+  .ev-rsvp{display:block; margin-top:4px;}
+  @media (max-width:520px){ .ev-rsvp{display:inline; margin:0 0 0 8px;} }
+  .rsvp-box{border-top:1px solid var(--line); margin-top:12px; padding-top:12px; display:flex; flex-direction:column; gap:8px;}
+  .rsvp-title{font-family:var(--font-display); text-transform:uppercase; font-size:17px; margin:0;}
+  .rsvp-box input{width:100%;}
+  .rsvp-box .link-btn{align-self:flex-start; font-size:12px;}
 </style>
 </head>
 <body>
@@ -112,12 +118,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../js/mst.js?v=202610041700" data-base="../"></script>
-<script src="../js/kalender.js?v=202610041700"></script>
+<script src="../js/mst.js?v=202610041800" data-base="../"></script>
+<script src="../js/kalender.js?v=202610041800"></script>
 <script>
 /* ---------- Zustand ---------- */
 let events = [], loadedAt = null, syncState = "busy", syncError = "";
-let viewer = { vorstand:false, name:"" };
+let viewer = { vorstand:false, name:"", memberId:null };
 let view = location.hash.slice(1) || "kommend";
 let month = KAL.today().slice(0, 7);          // "YYYY-MM" der Monatsansicht
 const app = document.getElementById("app"), dlg = document.getElementById("dlg");
@@ -132,19 +138,43 @@ refresh(false);
 setInterval(() => { if(!document.hidden) refresh(false); }, 5 * 60 * 1000);
 document.addEventListener("visibilitychange", () => { if(!document.hidden && loadedAt && Date.now() - loadedAt > 60 * 1000) refresh(false); });
 window.addEventListener("hashchange", () => { view = location.hash.slice(1) || "kommend"; render(); });
+/* ?termin=<schlüssel> öffnet direkt diesen Termin (Links von Startseite und «Mein MST») */
+let wantedKey = new URLSearchParams(location.search).get("termin");
+function openWanted(){
+  if(!wantedKey || !events.length) return;
+  const e = events.find(x => x.key === wantedKey || KAL.rsvpId(x) === wantedKey);
+  if(e){ wantedKey = null; openDetail(e.key); }
+}
 
 MST._onReady = () => refreshViewer(auth.currentUser);
 auth.onAuthStateChanged(u => refreshViewer(u));
+let viewerSeq = 0;
 async function refreshViewer(u){
-  viewer = { vorstand:false, name:"" };
+  const seq = ++viewerSeq;   // beim Einloggen kommen zwei Aufrufe kurz nacheinander – der letzte gilt
+  let v = { vorstand:false, name:"", memberId:null };
   if(KAL.testVorstand()){
-    viewer = { vorstand:true, name:"Test", role:"admin" };
+    v = { vorstand:true, name:"Test", role:"admin", memberId:"m10" };
     MST.user = { id:"m10", name:"Test" }; MST.log = () => {};
   } else if(u && !u.isAnonymous){
-    try{ const usr = await MST.loadVorstand(u); viewer = { vorstand:true, name:usr.name, role:usr.role }; }catch(e){ console.warn(e); }
+    try{ const usr = await MST.loadVorstand(u); v = { vorstand:true, name:usr.name, role:usr.role, memberId:usr.id }; }catch(e){ console.warn(e); }
+  } else if(u){
+    // Mitglied (Nummer + Vorname): darf zu- und absagen
+    try{
+      const s = await db.collection("sessions").doc(u.uid).get();
+      if(s.exists){
+        const id = s.data().memberId;
+        await MST.loadDirectory();
+        const d = MST.directory[id] || { name:id, short:id };
+        MST.user = { id, name:d.name, short:d.short, admin:false };
+        v = { vorstand:false, name:d.name, memberId:id };
+      }
+    }catch(e){ console.warn(e); }
   }
+  if(seq !== viewerSeq) return;
+  viewer = v;
   const gate = document.getElementById("gate");
-  if(viewer.vorstand && !gate.hidden){ gate.hidden = true; gate.innerHTML = ""; }
+  if(viewer.memberId && !gate.hidden){ gate.hidden = true; gate.innerHTML = ""; }
+  if(viewer.memberId && !KAL.testVorstand()) KAL.watchRsvps(() => { render(); refreshDetail(); });
   render();
 }
 
@@ -158,6 +188,7 @@ async function refresh(fresh){
     console.error(e); syncState = "err"; syncError = e.message;
   }
   render();
+  openWanted();
 }
 
 /* ---------- Seite ---------- */
@@ -170,9 +201,9 @@ function render(){
   app.innerHTML = `
     <div class="topbar">
       <span class="crumbs"><a href="../">MST Ermatingen</a> / Kalender</span>
-      <div id="userbar">${viewer.vorstand
-        ? `<span class="user-chip"><span class="admin-tag">${esc(MST.ROLE_LABEL[viewer.role] || "Vorstand")}</span>${esc(viewer.name)}</span><button class="link-btn" id="logoutBtn" type="button">Abmelden</button>`
-        : '<button class="link-btn" id="loginBtn" type="button">Vorstand-Login</button>'}</div>
+      <div id="userbar">${viewer.memberId
+        ? `<span class="user-chip">${viewer.vorstand ? `<span class="admin-tag">${esc(MST.ROLE_LABEL[viewer.role] || "Vorstand")}</span>` : ""}${esc(viewer.name)}</span><button class="link-btn" id="logoutBtn" type="button">Abmelden</button>`
+        : '<button class="link-btn" id="loginBtn" type="button">Login</button>'}</div>
     </div>
     <div class="hero">
       <div class="hero-left">
@@ -199,7 +230,7 @@ function render(){
     <section class="panel" id="content"></section>`;
   app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { location.hash = b.dataset.tab; });
   const lb = document.getElementById("loginBtn");
-  if(lb) lb.onclick = showLogin;
+  if(lb) lb.onclick = () => showLogin(false);
   const lo = document.getElementById("logoutBtn");
   if(lo) lo.onclick = () => MST.logout();
   const ab = document.getElementById("addBtn");
@@ -214,13 +245,15 @@ function render(){
   bindContent(content);
 }
 
-/* Login nur für den Vorstand (Mitglieder brauchen hier keines) – mit «Abbrechen» */
-function showLogin(){
-  MST.showLogin("", true);
+/* Login ist freiwillig: Mitglieder zum Zu-/Absagen, Vorstand zum Eintragen – mit «zurück» */
+function showLogin(admin){
+  if(dlg.open) dlg.close();
+  MST.showLogin("", admin);
   const gate = document.getElementById("gate");
+  if(!admin) gate.querySelector(".login-sub").textContent = "Login für Mitglieder – zum Zu- und Absagen bei Terminen";
   const sw = document.getElementById("switchLogin");
-  if(sw) sw.remove();
-  gate.querySelector(".login-card").insertAdjacentHTML("beforeend", '<button class="link-btn" id="cancelLogin" type="button">← zurück zum Kalender</button>');
+  if(sw) sw.onclick = () => showLogin(!admin);
+  gate.querySelector(".login-card").insertAdjacentHTML("beforeend", '<br><button class="link-btn" id="cancelLogin" type="button">← zurück zum Kalender</button>');
   document.getElementById("cancelLogin").onclick = () => { gate.hidden = true; gate.innerHTML = ""; };
 }
 
@@ -240,7 +273,7 @@ function evRow(e, next){
     <span class="ev-date"><span class="wd">${d.toLocaleDateString("de-CH", { weekday:"short" })}</span><span class="d">${d.getDate()}</span><span class="m">${d.toLocaleDateString("de-CH", { month:"short" })}</span></span>
     <span><span class="ev-title">${k.icon} ${esc(e.title)}${e.recurring ? ' <span class="tag">Serie</span>' : ""}</span>
       <span class="ev-meta">${esc(meta[0])}${e.location ? `<span class="loc">${esc(e.location)}</span>` : ""}</span></span>
-    <span class="ev-side">${KAL.isPast(e) ? "" : esc(KAL.countdown(e))}</span>
+    <span class="ev-side">${KAL.isPast(e) ? "" : esc(KAL.countdown(e))}${viewer.memberId && KAL.rsvpAllowed(e) ? `<span class="ev-rsvp">${KAL.rsvpBadge(e, viewer.memberId)}</span>` : ""}</span>
   </button>`;
 }
 function listHtml(list, next, emptyText){
@@ -338,9 +371,53 @@ function bindContent(root){
 }
 
 /* ---------- Dialoge ---------- */
+let detailKey = null;
+/* Zusagen kommen live – offenen Termin-Dialog nachführen (ausser jemand tippt gerade eine Bemerkung) */
+function refreshDetail(){
+  if(!dlg.open || !detailKey) return;
+  const a = document.activeElement;
+  if(a && a.id === "rsvpNote") return;
+  openDetail(detailKey);
+}
+function rsvpHtml(e){
+  if(!KAL.rsvpAllowed(e)) return "";
+  if(!viewer.memberId) return `<div class="rsvp-box"><button class="btn-ghost" id="rsvpLogin" type="button" style="width:100%">Einloggen zum Zu- oder Absagen</button></div>`;
+  const mine = KAL.myRsvp(e, viewer.memberId), L = KAL.rsvpList(e);
+  const names = list => list.map(x => `${esc(MST.nameOf(x.id))}${x.n ? ` <span class="n">(${esc(x.n)})</span>` : ""}`).join(", ");
+  return `<div class="rsvp-box">
+    <p class="rsvp-title">Bist du dabei?</p>
+    ${KAL.rsvpButtons(e, viewer.memberId)}
+    <input id="rsvpNote" maxlength="100" placeholder="Bemerkung (optional), z. B. «komme später»" value="${esc(mine && mine.n || "")}">
+    ${mine ? '<button class="link-btn" id="rsvpClear" type="button">Antwort zurückziehen</button>' : ""}
+    <div class="rsvp-who">
+      <div><b>Dabei (${L.ja.length})</b>${names(L.ja) || '<span class="n">noch niemand</span>'}</div>
+      ${L.vielleicht.length ? `<div><b>Vielleicht (${L.vielleicht.length})</b>${names(L.vielleicht)}</div>` : ""}
+      ${L.nein.length ? `<div><b>Kann nicht (${L.nein.length})</b>${names(L.nein)}</div>` : ""}
+    </div>
+  </div>`;
+}
+function bindRsvp(e){
+  const lg = dlg.querySelector("#rsvpLogin");
+  if(lg) lg.onclick = () => { wantedKey = e.key; showLogin(false); };
+  dlg.querySelectorAll("[data-rsvp]").forEach(b => b.onclick = async () => {
+    const s = b.dataset.rsvp, mine = KAL.myRsvp(e, viewer.memberId);
+    const note = (dlg.querySelector("#rsvpNote") || {}).value || "";
+    dlg.querySelectorAll("[data-rsvp]").forEach(x => x.disabled = true);
+    try{
+      await KAL.setRsvp(e, viewer.memberId, mine && mine.s === s && note === (mine.n || "") ? null : s, note.trim());
+      MST.log("kalender", `${KAL.RSVP[s].label}: ${e.title} (${KAL.when(e, true)})`);
+    }catch(err){ console.error(err); alert("Hat nicht geklappt – bitte nochmals versuchen."); }
+    openDetail(e.key);
+  });
+  const note = dlg.querySelector("#rsvpNote");
+  if(note) note.onchange = () => { const mine = KAL.myRsvp(e, viewer.memberId); if(mine) KAL.setRsvp(e, viewer.memberId, mine.s, note.value.trim()); };
+  const cl = dlg.querySelector("#rsvpClear");
+  if(cl) cl.onclick = async () => { await KAL.setRsvp(e, viewer.memberId, null); MST.log("kalender", `Antwort zurückgezogen: ${e.title}`); openDetail(e.key); };
+}
 function openDetail(key){
   const e = events.find(x => x.key === key);
   if(!e) return;
+  detailKey = key;
   const k = KAL.kind(e);
   dlg.innerHTML = `
     <h3>${k.icon} ${esc(e.title)}</h3>
@@ -351,12 +428,15 @@ function openDetail(key){
       ${k.link ? `<p><a href="../${k.link}">Zum Bereich ${esc(k.link.replace("/", "").replace(/^\w/, c => c.toUpperCase()))} →</a></p>` : ""}
       ${e.recurring ? `<p class="muted" style="font-size:12.5px">Serientermin – ändern nur direkt im Google Kalender.</p>` : ""}
       ${viewer.vorstand && e.by ? `<p class="muted" style="font-size:12px">Zuletzt auf der Seite bearbeitet von ${esc(e.by)}</p>` : ""}
+      ${/^spieltag\//.test(k.link) && !KAL.isPast(e) ? `<p><a href="../">Anmelden für den Spieltag: auf der Startseite in der Spieltag-Kachel →</a></p>` : ""}
     </div>
+    ${rsvpHtml(e)}
     <div class="dlg-actions">
       ${canEdit() && !e.recurring ? '<button class="btn-ghost" id="editBtn" type="button">Bearbeiten</button>' : ""}
       <div class="right"><button class="btn-primary" id="closeBtn" type="button">Schliessen</button></div>
     </div>`;
   dlg.querySelector("#closeBtn").onclick = () => dlg.close();
+  bindRsvp(e);
   const eb = dlg.querySelector("#editBtn");
   if(eb) eb.onclick = () => openEdit(e);
   if(!dlg.open) dlg.showModal();
@@ -364,6 +444,7 @@ function openDetail(key){
 
 const PRESETS = ["Minispieltag", "Afterworkbar", "GV MST", "Padel", "Skitag MST", "Winterevent MST", "Vorstandssitzung"];
 function openEdit(e, day){
+  detailKey = null;
   const isNew = !e;
   const startDate = e ? KAL.firstDay(e) : day, endDate = e ? KAL.lastDay(e) : day;
   const allDay = e ? e.allDay : true;

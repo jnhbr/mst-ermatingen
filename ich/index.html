@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mein MST · MST Ermatingen</title>
+<link rel="manifest" href="../manifest.json">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="icon" href="../assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#141311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/mst.css?v=202610041800">
+<style>
+  .muted{color:var(--muted);}
+  .court-line{position:relative; height:1px; background:linear-gradient(90deg, transparent, var(--line-strong) 12%, var(--line-strong) 88%, transparent); margin:0 4px 22px;}
+  .me-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap:12px; margin:0 4px; align-items:start;}
+  .me-grid .card{margin:0 !important;}
+  .me-card h3{display:flex; align-items:center; gap:8px; margin:0 0 12px;}
+  .me-card h3 .ic{font-size:20px;}
+  .me-card h3 a{margin-left:auto; font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); text-decoration:none; font-weight:400;}
+  .me-card h3 a:hover{color:var(--yellow);}
+  .me-card.wide{grid-column:1 / -1;}
+  .big-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+  .big{flex:1; min-width:84px; background:var(--bg-elev-2); border:1px solid var(--line); border-radius:var(--radius-sm); padding:8px 12px;}
+  .big .v{font-family:var(--font-display); font-size:28px; line-height:1; color:var(--yellow); display:block;}
+  .big .l{font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;}
+  .line{display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:14px;}
+  .line:last-child{border-bottom:none;}
+  .line .r{color:var(--muted); text-align:right; font-size:13px;}
+  .pill{display:inline-block; font-family:var(--font-mono); font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; border-radius:4px; padding:2px 7px; border:1px solid var(--line-strong); color:var(--muted); white-space:nowrap;}
+  .pill.ok{border-color:var(--green); color:var(--green); background:var(--green-soft);}
+  .pill.warn{border-color:var(--yellow); color:var(--yellow); background:var(--yellow-soft);}
+  .pill.bad{border-color:var(--red); color:var(--red); background:var(--red-soft);}
+  .hint{font-size:12.5px; color:var(--muted); margin:10px 0 0;}
+  .hint a, .line a{color:var(--yellow);}
+  /* Termine mit Zusage */
+  .ev-item{padding:10px 0; border-bottom:1px solid var(--line);}
+  .ev-item:last-child{border-bottom:none;}
+  .ev-top{display:flex; justify-content:space-between; gap:10px; align-items:baseline;}
+  .ev-name{font-weight:600; font-size:15px; color:var(--white); text-decoration:none;}
+  .ev-name:hover{color:var(--yellow);}
+  .ev-when{font-family:var(--font-mono); font-size:11px; color:var(--yellow); white-space:nowrap;}
+  .ev-sub{font-size:12.5px; color:var(--muted); margin:2px 0 8px;}
+  .ev-item .rsvp-btn{padding:7px 4px; font-size:12.5px;}
+  .empty{color:var(--muted); font-size:14px;}
+</style>
+</head>
+<body>
+<div id="gate"><div class="loading">lade …</div></div>
+<div id="app"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../js/mst.js?v=202610041800" data-base="../"></script>
+<script src="../js/kalender.js?v=202610041800"></script>
+<script src="../js/spieltag-stats.js?v=202610041800"></script>
+<script>
+/* ===================== Mein MST =====================
+   Alles Persönliche auf einer Seite – liest nur, was die anderen Bereiche schon speichern:
+   Kalender (+ Zusagen rsvp/), Spieltag (Anmeldung, Historie), Padel (nächster Termin), Afterworkbar (Einsätze),
+   Jahresbeitrag (finance/<jahr>/fees/<ich> – die Regeln erlauben jedem nur den eigenen) und GV (eigene Vorschläge).
+   Jeder Block lädt für sich; fehlt etwas, bleibt nur dieser Block leer. */
+const S = SpieltagStats;
+let me = null;
+const st = { events:null, spieltag:null, padel:null, awb:null, fee:null, gv:null };
+const todayISO = () => KAL.today();
+const dShort = iso => iso ? new Date(iso + "T12:00:00").toLocaleDateString("de-CH", { weekday:"short", day:"numeric", month:"short" }) : "";
+const CHF = n => "CHF " + (Math.round(n * 100) / 100).toLocaleString("de-CH", { minimumFractionDigits:0, maximumFractionDigits:2 }) + (Number.isInteger(n) ? ".–" : "");
+
+MST.start(user => {
+  me = user;
+  draw();
+  loadEvents(); loadSpieltag(); loadPadel(); loadAwb(); loadFeeAndGv();
+});
+
+/* ---------- Laden ---------- */
+async function loadEvents(){
+  if(!KAL.ready()) return;
+  const c = KAL.cached();
+  if(c){ st.events = c.events; draw(); }
+  KAL.watchRsvps(draw);
+  try{ st.events = await KAL.load(false); }catch(e){ console.warn("Kalender", e); if(!st.events) st.events = []; }
+  draw();
+}
+
+async function loadSpieltag(){
+  try{
+    const [set, persons, hist] = await Promise.all([
+      db.collection("spieltagMeta").doc("settings").get(),
+      db.collection("spieltagPersons").get(),
+      db.collection("spieltagHistory").get()
+    ]);
+    const year = set.exists ? set.data().currentYear : null;
+    const names = {};
+    let pid = null;
+    persons.forEach(d => { names[d.id] = d.data().name; if(d.data().memberId === me.id && (!pid || d.id === me.id)) pid = d.id; });
+    const history = hist.docs.map(d => d.data()).sort((a, b) => a.year - b.year);
+    let yd = null, signup = null;
+    if(year){
+      const [y, s] = await Promise.all([db.collection("spieltag").doc(String(year)).get(), db.collection("spieltag").doc(String(year)).collection("signups").doc(me.id).get()]);
+      yd = y.exists ? y.data() : null; signup = s.exists ? s.data() : null;
+    }
+    st.spieltag = { year, yd, signup, pid, history, names };
+  }catch(e){ console.warn("Spieltag", e); st.spieltag = { error:true }; }
+  draw();
+}
+
+async function loadPadel(){
+  try{
+    const conf = await db.collection("config").doc("padel").get();
+    const season = conf.exists ? conf.data().currentSeason : null;
+    if(!season){ st.padel = { none:true }; draw(); return; }
+    const cfg = (await db.collection("padel").doc(season).get()).data() || {};
+    // nächster Donnerstag der Saison (gleich gerechnet wie auf der Padel-Seite)
+    const dates = [], d = new Date(cfg.start + "T00:00:00Z"), last = new Date(cfg.end + "T00:00:00Z");
+    while(cfg.start && d <= last){ dates.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 7); }
+    const next = dates.find(x => x >= todayISO() && !(cfg.venueCancelled || {})[x]) || null;
+    const day = next ? ((await db.collection("padel").doc(season).collection("days").doc(next).get()).data() || {}) : {};
+    const fixed = (cfg.fixed || []).some(f => f.id === me.id);
+    st.padel = { season, cfg, next, day, fixed, left:dates.filter(x => x >= todayISO()).length };
+  }catch(e){ console.warn("Padel", e); st.padel = { error:true }; }
+  draw();
+}
+
+async function loadAwb(){
+  try{
+    const conf = await db.collection("config").doc("awb").get();
+    const year = conf.exists ? conf.data().currentYear : null;
+    if(!year){ st.awb = { none:true }; draw(); return; }
+    const [info, shifts] = await Promise.all([db.collection("awb").doc(year).get(), db.collection("awb").doc(year).collection("shifts").get()]);
+    const all = shifts.docs.map(x => x.data()).sort((a, b) => (a.blockOrder - b.blockOrder) || (a.order - b.order));
+    st.awb = { year, info:info.data() || {}, mine:all.filter(s => s.assignee === me.id), free:all.filter(s => !s.assignee).length };
+  }catch(e){ console.warn("Afterworkbar", e); st.awb = { error:true }; }
+  draw();
+}
+
+/* Jahresbeitrag: gleiche Rechnung wie die Finanzen-Seite (js/gv-app.js → feeOf) –
+   voller Beitrag minus Rabatt pro Einsatz an der Afterworkbar (Schicht/Sonderjob, Auf-/Abbau), Vorstand gratis. */
+async function loadFeeAndGv(){
+  try{
+    const [gvs, vConf] = await Promise.all([db.collection("gv").get(), db.collection("config").doc("verein").get()]);
+    const years = gvs.docs.filter(d => /^\d{4}$/.test(d.id)).map(d => ({ y:d.id, d:d.data() })).sort((a, b) => b.y.localeCompare(a.y));
+    const v = Object.assign({ vorstand:{ praesident:"m10", aktuar:"m5", kassier:"m19" }, fee:100, discount:30, twint:"" }, vConf.exists ? vConf.data() : {});
+    // GV: nächste bzw. letzte GV und meine Vorschläge dazu
+    const latest = years[0];
+    if(latest){
+      const ant = await db.collection("gv").doc(latest.y).collection("antraege").where("by", "==", me.id).get();
+      st.gv = { year:latest.y, gv:latest.d, mine:ant.docs.map(x => x.data()) };
+    } else st.gv = { none:true };
+    // Beitrag: jüngstes Jahr mit Eintrag, sonst das Jahr der letzten schon stattgefundenen GV
+    let pick = null;
+    for(const g of years.slice(0, 2)){
+      const f = await db.collection("finance").doc(g.y).collection("fees").doc(me.id).get();
+      if(f.exists){ pick = { y:g.y, gv:g.d, f:f.data() }; break; }
+    }
+    if(!pick){ const g = years.find(x => x.d.date && x.d.date <= todayISO()); if(g) pick = { y:g.y, gv:g.d, f:{} }; }
+    if(!pick){ st.fee = { none:true }; draw(); return; }
+    const f = pick.f, m = MST.directory[me.id] || {};
+    let amount, label = "";
+    if(Object.values(v.vorstand).includes(me.id)){ amount = 0; label = "Vorstand – kein Beitrag"; }
+    else if(f.status === "erlassen"){ amount = 0; label = "erlassen"; }
+    else if(f.amount != null && f.amount !== ""){ amount = +f.amount; }
+    else if(m.joined && m.joined > (pick.gv.date || `${pick.y}-09-30`)){ amount = +v.fee; label = "Eintritt im laufenden Jahr – voller Beitrag"; }
+    else {
+      let awb = f.awb, aufbau = f.aufbau;
+      if(awb == null || aufbau == null){
+        const sh = (await db.collection("awb").doc(pick.y).collection("shifts").where("assignee", "==", me.id).get()).docs.map(x => x.data());
+        if(awb == null) awb = sh.some(s => s.kind === "schicht" || s.kind === "sonder");
+        if(aufbau == null) aufbau = sh.some(s => s.kind === "aufbau");
+      }
+      amount = Math.max(0, +v.fee - +v.discount * ((awb ? 1 : 0) + (aufbau ? 1 : 0)));
+      label = [awb ? "Rabatt Afterworkbar-Einsatz" : "", aufbau ? "Rabatt Auf-/Abbau" : ""].filter(Boolean).join(" + ");
+    }
+    st.fee = { year:pick.y, status:f.status || "offen", amount, label, twint:v.twint, paidAt:f.paidAt || null };
+  }catch(e){ console.warn("Beitrag/GV", e); st.fee = st.fee || { error:true }; st.gv = st.gv || { error:true }; }
+  draw();
+}
+
+/* ---------- Darstellung ---------- */
+function draw(){
+  if(!me) return;
+  const app = document.getElementById("app");
+  const a = document.activeElement;
+  if(a && a.tagName === "INPUT" && app.contains(a)) return;
+  const sp = st.spieltag && !st.spieltag.error ? spieltagStats() : null;
+  app.innerHTML = `
+    <div class="topbar">
+      <span class="crumbs"><a href="../">MST Ermatingen</a> / Mein MST</span>
+      <div id="userbar"></div>
+    </div>
+    <div class="hero">
+      <div class="hero-left">
+        <img class="hero-logo" src="../assets/logo.png" alt="">
+        <div class="hero-titles">
+          <span class="eyebrow">Mein MST</span>
+          <h1 class="hero-title">Hoi ${esc(me.short || me.name)}</h1>
+          <p class="hero-sub">Deine Termine, Spieltage, Padel, Einsätze und dein Jahresbeitrag – alles auf einen Blick.</p>
+        </div>
+      </div>
+      <div class="hero-stats">
+        ${sp && sp.rows.length ? `<div class="stat-chip"><span class="num">${sp.rows.length}</span><span class="lbl">Spieltage</span></div>` : ""}
+        ${sp && sp.best ? `<div class="stat-chip"><span class="num">${sp.best}.</span><span class="lbl">bester Rang</span></div>` : ""}
+      </div>
+    </div>
+    <div class="court-line"></div>
+    <div class="me-grid">
+      ${cardEvents()}
+      ${cardSpieltag(sp)}
+      ${cardFee()}
+      ${cardAwb()}
+      ${cardPadel()}
+      ${cardGv()}
+    </div>
+    <p class="footer-note">Ändern kannst du alles in den einzelnen Bereichen – hier ist nur die Übersicht.</p>`;
+  MST.renderUserBar();
+  bind();
+}
+
+function cardEvents(){
+  if(!KAL.ready()) return "";
+  if(!st.events) return `<div class="card me-card wide"><h3><span class="ic">📅</span>Nächste Termine</h3><p class="empty">lade …</p></div>`;
+  const next = st.events.filter(e => !KAL.isPast(e)).slice(0, 6);
+  const open = st.events.filter(e => KAL.rsvpAllowed(e) && !KAL.myRsvp(e, me.id)).length;
+  return `<div class="card me-card wide"><h3><span class="ic">📅</span>Nächste Termine${open ? ` <span class="pill warn">${open} ohne Antwort</span>` : ""}<a href="../kalender/">Kalender →</a></h3>
+    ${next.length ? next.map(e => {
+      const k = KAL.kind(e);
+      let action = "";
+      if(KAL.rsvpAllowed(e)){
+        const n = KAL.rsvpList(e).ja.length;
+        action = KAL.rsvpButtons(e, me.id).replace(/data-rsvp=/g, `data-key="${esc(e.key)}" data-rsvp=`) + (n ? `<p class="hint" style="margin-top:6px">${n} dabei</p>` : "");
+      } else if(/^spieltag\//.test(k.link) && st.spieltag && !st.spieltag.error){
+        const on = st.spieltag.signup && st.spieltag.signup.status === "ja";
+        action = `<span class="pill ${on ? "ok" : "warn"}">${on ? "✓ angemeldet" : "noch nicht angemeldet"}</span>${on ? "" : ' <a class="hint" href="../">→ anmelden auf der Startseite</a>'}`;
+      } else if(/^padel\//.test(k.link)){
+        action = `<a class="hint" href="../padel/">Verfügbarkeit in Padel →</a>`;
+      }
+      return `<div class="ev-item">
+        <div class="ev-top"><a class="ev-name" href="../kalender/?termin=${encodeURIComponent(e.key)}">${k.icon} ${esc(e.title)}</a><span class="ev-when">${esc(KAL.countdown(e))}</span></div>
+        <div class="ev-sub">${esc(KAL.when(e))}${e.location ? " · " + esc(e.location) : ""}</div>
+        ${action}
+      </div>`;
+    }).join("") : '<p class="empty">Keine kommenden Termine.</p>'}</div>`;
+}
+
+function spieltagStats(){
+  const s = st.spieltag, pid = s.pid;
+  if(!pid) return { rows:[], best:null };
+  const rows = [];
+  s.history.forEach(y => (y.rows || []).forEach(r => { if((r.pids || []).includes(pid)) rows.push({ year:y.year, rank:r.rank, total:r.total, n:y.rows.length }); }));
+  const ranks = rows.map(r => r.rank).filter(Boolean);
+  return { rows, best:ranks.length ? Math.min(...ranks) : null, wins:ranks.filter(r => r === 1).length,
+    partner:S.partners(s.history, pid)[0] || null, nemesis:S.rivals(s.history, pid).nemesis };
+}
+function cardSpieltag(sp){
+  const s = st.spieltag;
+  const head = `<h3><span class="ic">🏆</span>Spieltag<a href="../spieltag/${s && s.pid ? "#person/" + encodeURIComponent(s.pid) : ""}">${s && s.pid ? "Mein Profil →" : "Spieltag →"}</a></h3>`;
+  if(!s) return `<div class="card me-card">${head}<p class="empty">lade …</p></div>`;
+  if(s.error) return `<div class="card me-card">${head}<p class="empty">Konnte nicht geladen werden.</p></div>`;
+  const nm = pid => s.names[pid] || "?";
+  let signup = "";
+  if(s.year && s.yd && !s.yd.closed){
+    const on = s.signup && s.signup.status === "ja";
+    const yd = s.yd, day = yd.date ? dShort(yd.date) : "Datum folgt";
+    const until = MST.signupUntil(yd), open = MST.signupOpenNow(yd);
+    signup = `<div class="line"><span>Minispieltag ${esc(s.year)} <span class="muted">· ${esc(day)}</span></span>
+      <span class="r">${on ? '<span class="pill ok">✓ angemeldet</span>' : open ? '<a href="../">jetzt anmelden →</a>' : '<span class="pill">nicht angemeldet</span>'}</span></div>
+      ${!on && open && until ? `<p class="hint">Anmeldeschluss: ${esc(MST.fmtDay(until))}</p>` : ""}`;
+  }
+  if(!sp.rows.length) return `<div class="card me-card">${head}${signup}<p class="hint">Noch kein Spieltag in der Historie – das ändert sich bald.</p></div>`;
+  const last = sp.rows[sp.rows.length - 1];
+  const fear = sp.nemesis;
+  return `<div class="card me-card">${head}
+    <div class="big-row">
+      <div class="big"><span class="v">${sp.rows.length}</span><span class="l">Teilnahmen</span></div>
+      <div class="big"><span class="v">${sp.best}.</span><span class="l">bester Rang</span></div>
+      <div class="big"><span class="v">${last.rank || "–"}.</span><span class="l">${esc(last.year)}</span></div>
+    </div>
+    ${signup}
+    ${sp.wins ? `<div class="line"><span>Siege</span><span class="r">${"🏆".repeat(Math.min(sp.wins, 5))} ${sp.wins}×</span></div>` : ""}
+    ${sp.partner ? `<div class="line"><span>Bester Partner</span><span class="r">${esc(nm(sp.partner.pid))} · Ø ${sp.partner.avg.toFixed(1)} Punkte</span></div>` : ""}
+    ${fear ? `<div class="line"><span>Angstgegner</span><span class="r">${esc(nm(fear.pid))} · ${fear.won}:${fear.lost}</span></div>` : ""}
+    <div class="line"><span>Alle Jahre</span><span class="r">${sp.rows.slice().reverse().map(r => `${r.year}: ${r.rank || "–"}.`).join(" · ")}</span></div>
+  </div>`;
+}
+
+function cardFee(){
+  const f = st.fee;
+  const head = `<h3><span class="ic">💰</span>Jahresbeitrag${f && f.year ? " " + esc(f.year) : ""}</h3>`;
+  if(!f) return `<div class="card me-card">${head}<p class="empty">lade …</p></div>`;
+  if(f.error || f.none) return `<div class="card me-card">${head}<p class="empty">${f.error ? "Konnte nicht geladen werden." : "Noch kein Beitrag fällig."}</p></div>`;
+  const S2 = { bezahlt:["✓ bezahlt", "ok"], erlassen:["erlassen", "ok"], angefordert:["angefordert – bitte bezahlen", "warn"], offen:["offen", ""] }[f.status] || [f.status, ""];
+  const free = f.amount === 0;
+  return `<div class="card me-card">${head}
+    <div class="big-row"><div class="big"><span class="v">${free ? "–" : esc(CHF(f.amount))}</span><span class="l">${free ? "kein Beitrag" : "Betrag"}</span></div></div>
+    <div class="line"><span>Status</span><span class="r"><span class="pill ${free ? "ok" : S2[1]}">${esc(free && f.status !== "bezahlt" ? (f.label || "kein Beitrag") : S2[0])}</span></span></div>
+    ${f.label && !free ? `<div class="line"><span>Rabatt</span><span class="r">${esc(f.label)}</span></div>` : ""}
+    ${!free && f.status !== "bezahlt" && f.twint ? `<p class="hint">Per Twint an den Kassier: <b>${esc(f.twint)}</b>. Der Kassier hakt es danach ab.</p>` : ""}
+    ${!free && f.status === "offen" ? `<p class="hint">Der Kassier meldet sich, sobald der Beitrag fällig ist (meist nach der GV).</p>` : ""}
+  </div>`;
+}
+
+function cardAwb(){
+  const w = st.awb;
+  const head = `<h3><span class="ic">🍺</span>Afterworkbar${w && w.year ? " " + esc(w.year) : ""}<a href="../afterworkbar/">Einsatzplan →</a></h3>`;
+  if(!w) return `<div class="card me-card">${head}<p class="empty">lade …</p></div>`;
+  if(w.error || w.none) return `<div class="card me-card">${head}<p class="empty">${w.error ? "Konnte nicht geladen werden." : "Noch kein Jahr angelegt."}</p></div>`;
+  const K = { aufbau:"Auf-/Abbau", schicht:"Schicht", sonder:"Sonderjob" };
+  return `<div class="card me-card">${head}
+    ${w.info.date ? `<div class="line"><span>Datum</span><span class="r">${esc(dShort(w.info.date))}${w.info.place ? " · " + esc(w.info.place) : ""}</span></div>` : ""}
+    ${w.mine.length ? w.mine.map(s => `<div class="line"><span>${esc(s.role)}</span><span class="r">${esc(s.block)} · ${esc(K[s.kind] || "")}</span></div>`).join("")
+      : `<p class="hint" style="margin-top:0">Du bist noch für keinen Einsatz eingetragen.${w.free ? ` Noch <b>${w.free}</b> frei – jeder Einsatz gibt Rabatt auf den Jahresbeitrag. <a href="../afterworkbar/">Eintragen →</a>` : ""}</p>`}
+  </div>`;
+}
+
+function cardPadel(){
+  const p = st.padel;
+  const head = `<h3><span class="ic">🎾</span>Padel<a href="../padel/">Mein Stand →</a></h3>`;
+  if(!p) return `<div class="card me-card">${head}<p class="empty">lade …</p></div>`;
+  if(p.error || p.none) return `<div class="card me-card">${head}<p class="empty">${p.error ? "Konnte nicht geladen werden." : "Keine Saison angelegt."}</p></div>`;
+  let status = "";
+  if(p.next){
+    if(p.day.cancelled) status = '<span class="pill bad">abgesagt</span>';
+    else if(p.fixed){
+      const v = p.day[me.id];
+      status = v === "declined" ? '<span class="pill">kann nicht</span>' : typeof v === "number" ? '<span class="pill ok">kann</span>' : '<span class="pill warn">noch keine Angabe</span>';
+    } else {
+      const mine = Object.values(p.day.extras || {}).some(x => x.memberId === me.id);
+      status = mine ? '<span class="pill ok">eingetragen</span>' : '<span class="pill">nicht eingetragen</span>';
+    }
+  }
+  return `<div class="card me-card">${head}
+    <div class="line"><span>Rolle</span><span class="r">${p.fixed ? "einer der Fixen" : "Mitspieler bei freien Plätzen"}</span></div>
+    ${p.next ? `<div class="line"><span>Nächster Termin <span class="muted">· ${esc(dShort(p.next))}</span></span><span class="r">${status}</span></div>` : '<div class="line"><span>Saison ist vorbei</span></div>'}
+    <p class="hint">${esc(p.cfg.time || "")}${p.cfg.place ? " · " + esc(p.cfg.place) : ""}${p.left ? ` · noch ${p.left} Termine` : ""}. Saldo und Bierrunden unter «Mein Stand».</p>
+  </div>`;
+}
+
+function cardGv(){
+  const g = st.gv;
+  const head = `<h3><span class="ic">📋</span>GV${g && g.year ? " " + esc(g.year) : ""}<a href="../gv/">GV →</a></h3>`;
+  if(!g) return `<div class="card me-card">${head}<p class="empty">lade …</p></div>`;
+  if(g.error || g.none) return `<div class="card me-card">${head}<p class="empty">${g.error ? "Konnte nicht geladen werden." : "Noch keine GV angelegt."}</p></div>`;
+  const past = g.gv.date && g.gv.date < todayISO();
+  const ST2 = { neu:["eingereicht", "warn"], aufgenommen:["aufgenommen", "ok"], abgelehnt:["nicht aufgenommen", ""] };
+  return `<div class="card me-card">${head}
+    <div class="line"><span>${past ? "War am" : "Datum"}</span><span class="r">${g.gv.date ? esc(dShort(g.gv.date)) : "folgt"}${g.gv.place ? " · " + esc(g.gv.place) : ""}</span></div>
+    ${g.mine.length ? g.mine.map(x => { const s = ST2[x.status] || [x.status || "", ""]; return `<div class="line"><span>${esc(x.title)}</span><span class="r"><span class="pill ${s[1]}">${esc(s[0])}</span></span></div>`; }).join("")
+      : `<p class="hint">${past ? "Protokoll und Übersicht findest du auf der GV-Seite." : 'Ein Thema für die GV? Auf der GV-Seite kannst du ein Traktandum vorschlagen. <a href="../gv/">Vorschlagen →</a>'}</p>`}
+  </div>`;
+}
+
+function bind(){
+  document.querySelectorAll("[data-rsvp][data-key]").forEach(b => b.onclick = async () => {
+    const e = (st.events || []).find(x => x.key === b.dataset.key);
+    if(!e) return;
+    const mine = KAL.myRsvp(e, me.id), s = b.dataset.rsvp;
+    b.disabled = true;
+    try{
+      await KAL.setRsvp(e, me.id, mine && mine.s === s ? null : s, mine && mine.n);
+      MST.log("kalender", `${mine && mine.s === s ? "Antwort zurückgezogen" : KAL.RSVP[s].label}: ${e.title} (${KAL.when(e, true)}) – Mein MST`);
+    }catch(err){ console.error(err); alert("Hat nicht geklappt – bitte nochmals versuchen."); }
+    draw();
+  });
+}
+</script>
+</body>
+</html>

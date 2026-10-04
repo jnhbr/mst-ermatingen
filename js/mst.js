@@ -22,6 +22,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
+/* Offline (Funkloch am Hörnle): Firestore behält alles Gelesene auf dem Gerät und schickt Änderungen nach,
+   sobald wieder Empfang da ist. Muss vor dem ersten Zugriff stehen; geht nicht (privates Fenster) = egal. */
+db.enablePersistence({ synchronizeTabs:true }).catch(e => console.warn("Offline-Speicher nicht verfügbar", e.code || e));
 
 const MST = {
   ADMIN_MEMBER_ID: "m10",
@@ -84,8 +87,26 @@ const MST = {
 
   /* Eintrag ins Änderungsprotokoll (lesen kann nur der Admin). */
   log(area, text, extra){
-    return db.collection("log").add({ at:Date.now(), by:this.user.id, byName:this.user.name, area, text, ...(extra || {}) })
-      .catch(e => console.warn("Protokoll fehlgeschlagen", e));
+    return this.quick(db.collection("log").add({ at:Date.now(), by:this.user.id, byName:this.user.name, area, text, ...(extra || {}) })
+      .catch(e => console.warn("Protokoll fehlgeschlagen", e)));
+  },
+
+  /* Schreiben ohne auf den Server zu warten: Firestore zeigt die Änderung sofort an und schickt sie nach,
+     sobald wieder Empfang da ist. Ohne Netz käme das Versprechen erst dann zurück – die Seite bliebe hängen.
+     Lehnt der Server später ab (z. B. Anmeldeschluss vorbei), erscheint ein Hinweis. */
+  quick(p, ms){
+    let late = false;
+    p.catch(e => { if(late){ console.error(e); this.toast("Eine Änderung wurde nicht gespeichert (keine Berechtigung oder abgelaufen). Bitte nochmals prüfen.", "red", 9000); } });
+    return Promise.race([p, new Promise(r => setTimeout(() => { late = true; r(); }, ms || 2500))]);
+  },
+  toast(text, kind, ms){
+    let el = document.getElementById("mstToast");
+    if(!el){ el = document.createElement("div"); el.id = "mstToast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+    el.className = "mst-toast " + (kind || "");
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(this._toastT);
+    if(ms !== 0) this._toastT = setTimeout(() => { el.hidden = true; }, ms || 3500);
   },
 
   /* Startet die Seite: zeigt bei Bedarf das Login und ruft danach onReady(user) auf. */
@@ -239,4 +260,45 @@ document.addEventListener("DOMContentLoaded", () => {
   f.className = "site-foot";
   f.innerHTML = `<a href="${MST.INSTAGRAM}" target="_blank" rel="noopener">${MST.instagramIcon}<span>@minispieltag</span></a>`;
   document.body.appendChild(f);
+  MST.watchOnline();
 });
+
+/* Offline-Hinweis: ohne Netz bleibt alles bedienbar, Änderungen gehen nach, sobald wieder Empfang da ist. */
+MST.watchOnline = function(){
+  const bar = document.createElement("div");
+  bar.className = "net-bar";
+  bar.hidden = true;
+  document.body.appendChild(bar);
+  let wasOffline = false, t = null;
+  const show = () => {
+    clearTimeout(t);
+    if(!navigator.onLine){
+      wasOffline = true;
+      bar.className = "net-bar off";
+      bar.textContent = "Offline – du kannst weiter eintragen, alles wird gespeichert, sobald wieder Empfang da ist.";
+      bar.hidden = false;
+      return;
+    }
+    if(!wasOffline){ bar.hidden = true; return; }
+    wasOffline = false;
+    bar.className = "net-bar sync";
+    bar.textContent = "Wieder online – synchronisiere …";
+    bar.hidden = false;
+    db.waitForPendingWrites().then(() => {
+      bar.className = "net-bar ok";
+      bar.textContent = "✓ Alles gespeichert";
+      t = setTimeout(() => { bar.hidden = true; }, 2500);
+    }).catch(() => { bar.hidden = true; });
+  };
+  window.addEventListener("online", show);
+  window.addEventListener("offline", show);
+  show();
+};
+
+/* Service Worker: hält die Seiten selbst (HTML, Stile, Skripte, Firebase) auf dem Gerät, damit sie auch im
+   Funkloch öffnen. Nicht auf localhost (dort stört das Zwischenspeichern beim Entwickeln). */
+if("serviceWorker" in navigator && location.protocol === "https:"){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register(MST.base + "sw.js").catch(e => console.warn("Service Worker", e));
+  });
+}

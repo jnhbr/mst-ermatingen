@@ -13,8 +13,8 @@ Sicherung älter als 8 Tage oder fehlgeschlagen, steht dort eine Warnung. Bei ei
 
 ## Stand (04.10.2026)
 Per clasp angelegt unter jnhbr97@gmail.com: Projekt «MST Backup» (Script-ID in `.clasp.json`), Code hochgeladen.
-**Noch offen, nur Jan im Browser:** https://script.google.com/d/1x29UEAXTMC34wHS80Y_r3RDqk68djdnG3qCBezqjrEnRVw_s7LywJuFJ/edit
-öffnen → oben Funktion **einrichten** wählen → **Ausführen** → Berechtigungen erlauben («Erweitert → Zu MST Backup wechseln»).
+Am 04.10.2026 hat Jan im Editor **einrichten** ausgeführt (Berechtigungen, wöchentlicher Auslöser, erste Sicherung).
+Editor: https://script.google.com/d/1x29UEAXTMC34wHS80Y_r3RDqk68djdnG3qCBezqjrEnRVw_s7LywJuFJ/edit
 
 ## Einrichten (einmalig)
 Per clasp (in diesem Ordner):

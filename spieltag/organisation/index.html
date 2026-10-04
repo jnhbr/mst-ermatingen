@@ -13,8 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../css/mst.css?v=202610041400">
-<link rel="stylesheet" href="../../css/spieltag.css?v=202610041400">
+<link rel="stylesheet" href="../../css/mst.css?v=202610041500">
+<link rel="stylesheet" href="../../css/spieltag.css?v=202610041500">
 <style>
   .two-col{display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:12px; align-items:start;}
   @media (max-width:860px){ .two-col{grid-template-columns:1fr;} }
@@ -52,13 +52,13 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../../js/mst.js?v=202610041400" data-base="../../"></script>
-<script src="../../js/spieltag-engine.js?v=202610041400"></script>
+<script src="../../js/mst.js?v=202610041500" data-base="../../"></script>
+<script src="../../js/spieltag-engine.js?v=202610041500"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="../../js/spieltag-stats.js?v=202610041400"></script>
-<script src="../../js/spieltag-data.js?v=202610041400"></script>
-<script src="../../js/spieltag-ui.js?v=202610041400"></script>
-<script src="../../js/kalender.js?v=202610041400"></script>
+<script src="../../js/spieltag-stats.js?v=202610041500"></script>
+<script src="../../js/spieltag-data.js?v=202610041500"></script>
+<script src="../../js/spieltag-ui.js?v=202610041500"></script>
+<script src="../../js/kalender.js?v=202610041500"></script>
 <script>
 /* ===================== Spieltag-Organisation (nur Admin) =====================
    Teilnehmende des Jahres, Personen (Mitglieder + Gäste), Grundgerüst der
@@ -179,7 +179,7 @@ function viewParticipants(c){
   const members = ids.filter(id => ST.persons[id].memberId);
   const guests = ids.filter(id => !ST.persons[id].memberId);
   const item = id => { const su = signupOf(id);
-    return `<label class="pitem ${parts.has(id) ? "on" : ""}" title="${su ? (su[1].status === "ja" ? "hat sich selbst angemeldet" : "hat selbst abgesagt") : ""}"><input type="checkbox" data-p="${esc(id)}" ${parts.has(id) ? "checked" : ""}>${esc(ST.nameOf(id))}${su ? (su[1].status === "ja" ? " ✋" : " ✗") : ""}
+    return `<label class="pitem ${parts.has(id) ? "on" : ""}" title="${su ? (su[1].by ? "von dir eingetragen" : su[1].status === "ja" ? "hat sich selbst angemeldet" : "hat selbst abgesagt") : ""}"><input type="checkbox" data-p="${esc(id)}" ${parts.has(id) ? "checked" : ""}>${esc(ST.nameOf(id))}${su && !su[1].by ? (su[1].status === "ja" ? " ✋" : " ✗") : ""}
     <span class="meta">${esc(ST.startNr(id, []))}</span></label>`; };
   const n = parts.size;
   c.innerHTML = `<div class="two-col">
@@ -199,7 +199,8 @@ function viewParticipants(c){
       <div class="plist">${guests.filter(id => parts.has(id)).map(item).join("") || '<span class="small muted">noch keine</span>'}</div>
       <details style="margin-top:10px" ${filter ? "open" : ""}><summary class="group-title" style="cursor:pointer; display:list-item">Alte Gäste & Ehemalige (${guests.filter(id => !parts.has(id)).length})</summary>
         <div class="plist" style="margin-top:8px">${guests.filter(id => !parts.has(id)).map(item).join("")}</div></details>
-      ${Object.keys(signups).length ? `<p class="small muted" style="margin:12px 0 0">✋ = hat sich selbst angemeldet, ✗ = hat selbst abgesagt (${Object.values(signups).filter(x => x.status === "ja").length} / ${Object.values(signups).filter(x => x.status === "nein").length}). Anhaken/Abhaken hier geht vor.</p>` : ""}
+      ${MST.signupFlag(yearDoc) ? `<p class="small muted" style="margin:12px 0 0">Anmeldung läuft${MST.signupUntil(yearDoc) ? " bis " + esc(MST.fmtDay(MST.signupUntil(yearDoc))) : ""}: Mitglieder zählen erst, wenn sie selbst bestätigt haben (✋) oder du sie hier anhakst. ✗ = hat selbst abgesagt.</p>` : ""}
+      ${Object.keys(signups).length ? `<p class="small muted" style="margin:6px 0 0">✋ ${Object.values(signups).filter(x => x.status === "ja" && !x.by).length} selbst angemeldet · ✗ ${Object.values(signups).filter(x => x.status === "nein").length} abgesagt. Anhaken/Abhaken hier geht vor.</p>` : ""}
       <p class="rule-note" style="margin:12px 0 0">Kleine Zahl rechts = Startnummer. Neue Vereinsmitglieder unter «Personen & Mitglieder» erfassen. Am Spieltag selbst: hier anhaken – im Spiel erscheint dann «neu dabei → einteilen».</p>
     </div>
     <div class="card"><h3>Geht es auf? (${n} Personen)</h3>${fitList(n)}</div>
@@ -234,10 +235,16 @@ function fitList(n){
   }).join("");
 }
 async function toggle(ids, on){
+  // Läuft die Anmeldung, gehen Mitglieder über signups/<memberId> (by:"admin") – die Liste enthält dann nur Gäste
+  const viaSignup = id => MST.signupFlag(yearDoc) && ST.persons[id] && ST.persons[id].memberId;
   const set = new Set(participants());
   ids.forEach(id => on ? set.add(id) : set.delete(id));
-  const ops = [{ op:"merge", path:`spieltag/${YEAR}`, data:{ participants:[...set] } }];
-  ids.forEach(id => { const su = signupOf(id); if(su) ops.push({ op:"delete", path:`spieltag/${YEAR}/signups/${su[0]}` }); });
+  const ops = [{ op:"merge", path:`spieltag/${YEAR}`, data:{ participants:[...set].filter(id => !viaSignup(id)) } }];
+  ids.forEach(id => {
+    const mid = viaSignup(id), su = signupOf(id);
+    if(mid && on) ops.push({ op:"set", path:`spieltag/${YEAR}/signups/${mid}`, data:{ pid:id, status:"ja", at:Date.now(), by:"admin" } });
+    else if(su) ops.push({ op:"delete", path:`spieltag/${YEAR}/signups/${su[0]}` });
+  });
   await D.batch(ops);
   log(`Spieltag ${YEAR}: ${ids.map(i => ST.nameOf(i)).join(", ")} ${on ? "angemeldet" : "abgemeldet"}`);
 }
@@ -338,7 +345,9 @@ async function saveMember(e){
     { op:"set", path:`memberDirectory/${id}`, data:{ name:(vorname + " " + nachname).trim(), short:f.short.value.trim() || vorname } },
     { op:"set", path:`spieltagPersons/${pid}`, data:{ name:spielname, memberId:id, nr:String(nr) } }
   ];
-  if(f.dabei.checked && yearDoc && !participants().includes(pid)) ops.push({ op:"merge", path:`spieltag/${YEAR}`, data:{ participants:participants().concat([pid]) } });
+  if(f.dabei.checked && yearDoc && !participants().includes(pid)) ops.push(MST.signupFlag(yearDoc)
+    ? { op:"set", path:`spieltag/${YEAR}/signups/${id}`, data:{ pid, status:"ja", at:Date.now(), by:"admin" } }
+    : { op:"merge", path:`spieltag/${YEAR}`, data:{ participants:participants().concat([pid]) } });
   try{
     await D.batch(ops);
     log(`Neues Mitglied ${nr} ${(vorname + " " + nachname).trim()} (Spielname ${spielname})`);
@@ -455,7 +464,7 @@ function viewYears(c){
             <select name="games"><option value="">Grundgerüst (${E.DEFAULT_LINEUP.length} Disziplinen 2026)</option>${years.map(y => `<option value="${y}" ${y === YEAR ? "selected" : ""}>Spieltag ${y}</option>`).join("")}</select>
           </label>
           <label>Teilnehmende von
-            <select name="parts"><option value="">niemand (leer)</option>${years.map(y => `<option value="${y}" ${y === YEAR ? "selected" : ""}>Spieltag ${y}</option>`).join("")}</select>
+            <select name="parts"><option value="">niemand (leer) – Mitglieder melden sich selbst an</option>${years.map(y => `<option value="${y}">Spieltag ${y}</option>`).join("")}</select>
           </label>
           <button class="btn-primary" type="submit">Anlegen</button>
         </form>

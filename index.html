@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/mst.css?v=202610041400">
+<link rel="stylesheet" href="css/mst.css?v=202610041500">
 <style>
   .home-hero{position:relative; display:flex; align-items:center; gap:22px; padding:34px 4px 26px; overflow:hidden;}
   .home-hero .logo{width:96px; height:auto; flex-shrink:0; filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));}
@@ -162,8 +162,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="js/mst.js?v=202610041400" data-base=""></script>
-<script src="js/kalender.js?v=202610041400"></script>
+<script src="js/mst.js?v=202610041500" data-base=""></script>
+<script src="js/kalender.js?v=202610041500"></script>
 <script>
 MST.start((user) => {
   document.getElementById("greeting").textContent = `Hoi ${user.short}!`;
@@ -218,11 +218,8 @@ async function syncFromCalendar(){
     await MST.syncSpieltagDate(s.year, s.yd, calDay);
   }catch(e){ console.warn("Kalender → Spieltag", e); }
 }
-function signedUp(){
-  const s = signupState;
-  if(s.signup) return s.signup.status === "ja";
-  return !!s.pid && ((s.yd && s.yd.participants) || []).includes(s.pid);
-}
+// angemeldet = selbst bestätigt (oder von Jan eingetragen) – eine übernommene Vorjahresliste zählt nicht
+function signedUp(){ return !!(signupState.signup && signupState.signup.status === "ja"); }
 function drawSignup(){
   const s = signupState, el = document.getElementById("signupBar");
   if(!s.yd || s.yd.closed){ el.hidden = true; return; }

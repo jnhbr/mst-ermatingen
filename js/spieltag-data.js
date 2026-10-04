@@ -133,9 +133,12 @@ const ST = {
     return u.name || "Team";
   },
   edition(year){ return parseInt(year, 10) - 2019; },
-  /* Teilnehmende = Liste der Organisation + Selbst-Anmeldungen (ja/nein) der Mitglieder */
+  /* Teilnehmende = Liste der Organisation + Selbst-Anmeldungen (ja/nein) der Mitglieder.
+     Läuft eine Anmeldung (MST.signupFlag), zählen Mitglieder NUR mit Anmeldung «ja» (selbst bestätigt oder von Jan
+     in der Organisation eingetragen) – eine aus dem Vorjahr übernommene Liste meldet niemanden an. Gäste bleiben in der Liste. */
   effectiveParticipants(yearDoc, signups){
-    const set = new Set((yearDoc && yearDoc.participants) || []);
+    const confirm = typeof MST !== "undefined" && MST.signupFlag(yearDoc);
+    const set = new Set(((yearDoc && yearDoc.participants) || []).filter(id => !(confirm && this.persons[id] && this.persons[id].memberId)));
     Object.values(signups || {}).forEach(s => {
       if(!s || !s.pid) return;
       if(s.status === "ja") set.add(s.pid); else if(s.status === "nein") set.delete(s.pid);

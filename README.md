@@ -69,6 +69,9 @@ Bis 2.10.2026 lief Padel auf Netlify (mst-padel.netlify.app, Repo `MST-Ermatinge
   Anmeldeschluss `spieltag/<jahr>.signupUntil` ("JJJJ-MM-TT", der Tag zählt noch) = automatisch 14 Tage davor (in der
   Organisation änderbar); die Firestore-Regeln sperren danach. Anmeldung offen = Schalter `signupOpen`, nie gesetzt =
   offen, sobald ein Anmeldeschluss gespeichert ist.
+  Solange die Anmeldung läuft, zählen Mitglieder NUR mit `signups/<memberId>.status == "ja"` (selbst bestätigt oder von Jan
+  in der Organisation angehakt → `by:"admin"`); eine aus dem Vorjahr übernommene Liste meldet niemanden an
+  (`ST.effectiveParticipants`). `participants` enthält dann nur noch Gäste.
   Gäste (ohne Login) meldet nur der Admin in der Organisation an, optional mit Handynummer (`contacts/<pid>`, nur Vorstand).
   Bierkapitän: `spieltag/<jahr>/beer/<id>` { pid, l:0.5|0.33, at, by }.
 - Testmodus: `spieltag/?test` (als Admin) bzw. `spieltag/?test&als=m5` (als Mitglied Nr. 5) bzw. `spieltag/organisation/?test` – liest die echten Daten, Änderungen bleiben
